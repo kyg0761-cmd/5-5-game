@@ -697,8 +697,9 @@ class GugudanSpeedGame {
       }
     }
 
-    // 랭킹 저장 (클리어 시간 오름차순: 빠른 시간 1위)
+    // 랭킹 저장 (2분 이내 클리어한 학생의 1인 1 최고 기록)
     const isNewRecord = this.saveRanking({
+      identifier: this.getStudentIdentifier(),
       stageId: currentStage.id,
       stageName: `${currentStage.name}(${currentStage.size}x${currentStage.size})`,
       name: this.playerName,
@@ -709,6 +710,7 @@ class GugudanSpeedGame {
     });
 
     if (isNewRecord) {
+      this.newRecordAlert.innerHTML = `🏆 축하합니다! 2분 안에 클리어하여 명예의 전당에 등재되었습니다!`;
       this.newRecordAlert.classList.remove('hidden');
     } else {
       this.newRecordAlert.classList.add('hidden');
@@ -737,26 +739,55 @@ class GugudanSpeedGame {
     this.showScreen('result');
   }
 
-  // 랭킹 시스템
+  // 랭킹 시스템 (단계별 1인 1 최고 기록 & 2분 이내 달성자 전당)
   getRankings() {
     try {
       const data = localStorage.getItem(RANKINGS_STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
+      const rawList = data ? JSON.parse(data) : [];
+
+      // 학생별 단계당 최고 기록 1개만 유지 (중복 제거)
+      const map = new Map();
+      rawList.forEach(item => {
+        if (item.timeSec <= 120) {
+          const idKey = `${item.stageId}_${item.identifier || item.name}`;
+          if (!map.has(idKey) || item.timeSec < map.get(idKey).timeSec) {
+            map.set(idKey, item);
+          }
+        }
+      });
+
+      const deduplicated = Array.from(map.values());
+      deduplicated.sort((a, b) => a.timeSec - b.timeSec || a.attempts - b.attempts);
+      return deduplicated;
     } catch (e) {
       return [];
     }
   }
 
   saveRanking(record) {
+    // ⏱️ 2분 (120초) 이내 클리어한 경우에만 명예의 전당에 등재!
+    if (record.timeSec > 120) {
+      return false;
+    }
+
     const list = this.getRankings();
-    list.push(record);
-    // 시간 오름차순 정렬 (빠른 시간이 1위)
+    const studentIdentifier = record.identifier || record.name;
+
+    const existingIndex = list.findIndex(r => r.stageId === record.stageId && ((r.identifier && r.identifier === studentIdentifier) || r.name === record.name));
+
+    if (existingIndex !== -1) {
+      // 이미 기록이 있을 때: 이번 기록이 더 빠를 때만 갱신
+      if (record.timeSec < list[existingIndex].timeSec) {
+        list[existingIndex] = record;
+      }
+    } else {
+      list.push(record);
+    }
+
     list.sort((a, b) => a.timeSec - b.timeSec || a.attempts - b.attempts);
+    localStorage.setItem(RANKINGS_STORAGE_KEY, JSON.stringify(list));
 
-    const top50 = list.slice(0, 50);
-    localStorage.setItem(RANKINGS_STORAGE_KEY, JSON.stringify(top50));
-
-    return top50.some(r => r.name === record.name && r.stageId === record.stageId && r.timeSec === record.timeSec);
+    return true;
   }
 
   renderRankingsTable() {
@@ -770,14 +801,15 @@ class GugudanSpeedGame {
     if (filtered.length === 0) {
       this.rankingListBody.innerHTML = `
         <tr>
-          <td colspan="6" class="empty-ranking">아직 등록된 기록이 없습니다. 첫 번째 스피드 챔피언이 되어보세요!</td>
+          <td colspan="6" class="empty-ranking">2분 이내로 통과하여 명예의 전당에 오른 학생이 아직 없습니다. 첫 번째 주인공이 되어보세요!</td>
         </tr>
       `;
       return;
     }
 
     let rows = '';
-    filtered.slice(0, 10).forEach((item, index) => {
+    // 인원수 제한 없이 2분 이내 통과한 모든 학생 표시
+    filtered.forEach((item, index) => {
       const rank = index + 1;
       let rankClass = '';
       if (rank === 1) rankClass = 'rank-1';

@@ -638,8 +638,9 @@ class MusicGame {
       this.stageClearBanner.classList.add('hidden');
     }
 
-    // 단계별 랭킹 저장
+    // 단계별 랭킹 저장 (5,000점 이상 달성자 명예의 전당)
     const isNewRecord = this.saveRanking(this.currentStageId, {
+      identifier: this.getStudentIdentifier(),
       name: this.playerName,
       score: this.score,
       correct: this.correctCount,
@@ -648,6 +649,7 @@ class MusicGame {
     });
 
     if (isNewRecord) {
+      this.newRecordAlert.innerHTML = `🏆 축하합니다! 5,000점 이상을 달성하여 명예의 전당에 등재되었습니다!`;
       this.newRecordAlert.classList.remove('hidden');
     } else {
       this.newRecordAlert.classList.add('hidden');
@@ -680,25 +682,55 @@ class MusicGame {
     this.showScreen('result');
   }
 
-  // 단계별 랭킹 시스템
+  // 단계별 랭킹 시스템 (1인 1 최고 기록 & 5,000점 이상 달성자 명예의 전당)
   getRankings(stageId) {
     try {
       const key = `${STORAGE_PREFIX}${stageId}`;
       const data = localStorage.getItem(key);
-      return data ? JSON.parse(data) : [];
+      const rawList = data ? JSON.parse(data) : [];
+      
+      // 학생별 최고 기록 1개만 유지 (중복 제거)
+      const map = new Map();
+      rawList.forEach(item => {
+        if (item.score >= 5000) {
+          const idKey = item.identifier || item.name;
+          if (!map.has(idKey) || item.score > map.get(idKey).score) {
+            map.set(idKey, item);
+          }
+        }
+      });
+
+      const deduplicated = Array.from(map.values());
+      deduplicated.sort((a, b) => b.score - a.score || b.correct - a.correct || b.combo - a.combo);
+      return deduplicated;
     } catch (e) {
       return [];
     }
   }
 
   saveRanking(stageId, record) {
+    // 5,000점 이상을 달성한 경우에만 명예의 전당에 등재!
+    if (record.score < 5000) {
+      return false;
+    }
+
     const list = this.getRankings(stageId);
-    list.push(record);
-    list.sort((a, b) => b.score - a.score || b.correct - a.correct);
-    
-    const top10 = list.slice(0, 10);
-    localStorage.setItem(`${STORAGE_PREFIX}${stageId}`, JSON.stringify(top10));
-    return top10.some(r => r.name === record.name && r.score === record.score);
+    const studentIdentifier = record.identifier || record.name;
+
+    const existingIndex = list.findIndex(r => (r.identifier && r.identifier === studentIdentifier) || r.name === record.name);
+
+    if (existingIndex !== -1) {
+      // 이미 기록이 있을 때: 이번 점수가 더 높을 때만 갱신
+      if (record.score > list[existingIndex].score) {
+        list[existingIndex] = record;
+      }
+    } else {
+      list.push(record);
+    }
+
+    list.sort((a, b) => b.score - a.score || b.correct - a.correct || b.combo - a.combo);
+    localStorage.setItem(`${STORAGE_PREFIX}${stageId}`, JSON.stringify(list));
+    return true;
   }
 
   renderRankingsTable(stageId) {
@@ -706,13 +738,14 @@ class MusicGame {
     if (list.length === 0) {
       this.rankingListBody.innerHTML = `
         <tr>
-          <td colspan="6" class="empty-ranking">${stageId}단계에 등록된 기록이 아직 없습니다. 첫 번째 챔피언이 되어보세요!</td>
+          <td colspan="6" class="empty-ranking">${stageId}단계에서 5,000점 이상을 달성한 학생이 아직 없습니다. 첫 번째 주인공이 되어보세요!</td>
         </tr>
       `;
       return;
     }
 
     let rows = '';
+    // 인원수 제한 없이 5,000점 이상 통과한 모든 학생 표시
     list.forEach((item, index) => {
       const rank = index + 1;
       let rankClass = '';
@@ -724,7 +757,7 @@ class MusicGame {
         <tr class="${rankClass}">
           <td><span class="rank-badge">${rank}</span></td>
           <td><strong>${this.escapeHtml(item.name)}</strong></td>
-          <td style="color: #fbbf24; font-weight: 700;">${item.score.toLocaleString()}</td>
+          <td style="color: #fbbf24; font-weight: 700;">${item.score.toLocaleString()}점</td>
           <td>${item.correct}개</td>
           <td>${item.combo}</td>
           <td style="color: #94a3b8; font-size: 0.82rem;">${item.date || '-'}</td>
