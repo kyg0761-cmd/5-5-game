@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>✖️ 구구단 스피드 챌린지 - 8x8 타임어택 게임</title>
+  <title>✖️ 구구단 스피드 챌린지 - 5단계 타임어택 게임</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;800;900&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
     <header class="game-header">
       <div class="badge-title">🎯 칭찬 포인트 획득 미션</div>
       <h1 class="main-title">구구단 스피드 챌린지</h1>
-      <p class="subtitle">2단부터 9단까지 무작위 빈칸을 가장 빠른 시간 안에 모두 채워보세요!</p>
+      <p class="subtitle">2단부터 9단까지 무작위 빈칸을 2분 안에 정복하고 다음 단계를 해금하세요!</p>
     </header>
 
     <!-- 대기 화면 (Start Screen) -->
@@ -37,20 +37,31 @@
           </div>
         </div>
 
+        <!-- 5단계 스테이지 선택 그리드 -->
+        <div class="stage-select-section">
+          <div class="stage-section-title">
+            <span>🎯 도전할 단계를 선택하세요</span>
+            <span class="stage-clear-tip">💡 2분(120초) 안에 클리어 시 다음 단계 해금!</span>
+          </div>
+
+          <div class="stage-grid" id="stage-grid">
+            <!-- JS로 1~5단계 카드 동적 생성 및 잠금/해금 상태 표시 -->
+          </div>
+        </div>
+
         <div class="rules-box">
           <h3>🎮 게임 규칙 및 조작법</h3>
           <ul>
-            <li>⏱️ <strong>기록 측정:</strong> 64칸을 모두 올바르게 채울 때까지의 <strong>소요 시간(초)</strong>을 측정합니다. (빠를수록 높은 순위!)</li>
-            <li>🎲 <strong>랜덤 배열:</strong> 가로와 세로 숫자의 순서가 매번 <strong>무작위로 섞여</strong> 출제됩니다!</li>
-            <li>⌨️ <strong>키보드 이동:</strong> 숫자를 입력한 뒤 <kbd>Tab</kbd> 키 또는 <kbd>Enter</kbd>, <kbd>방향키(↑↓←→)</kbd>로 다음 칸으로 이동하세요!</li>
+            <li>⏱️ <strong>단계별 해금:</strong> 각 단계를 <strong>2분(120초) 이내</strong>에 모두 맞혀야 다음 단계가 해금됩니다!</li>
+            <li>🎲 <strong>랜덤 배열:</strong> 2~9단 중 가로와 세로 숫자의 순서가 매판 <strong>무작위로 섞여</strong> 출제됩니다.</li>
+            <li>⌨️ <strong>키보드 이동:</strong> 숫자를 입력한 뒤 <kbd>Tab</kbd> 키 또는 <kbd>Enter</kbd>, <kbd>방향키(↑↓←→)</kbd>로 칸을 이동하세요.</li>
             <li>📝 <strong>채점 방식:</strong> 다 채운 후 우측 하단 <strong>[채점 완료]</strong> 버튼을 누르면 빠른 속도로 정답을 검사합니다.</li>
             <li>🔺 <strong>오답 표시:</strong> 틀린 칸이 있으면 <strong>빨간 펜 삼각형(△)</strong>으로 표시됩니다. 고친 후 다시 채점하세요!</li>
-            <li>🏆 <strong>명예의 전당:</strong> 가장 짧은 시간에 클리어한 Top 10 학생에게 <strong>칭찬 포인트</strong>가 지급됩니다!</li>
           </ul>
         </div>
 
         <div class="btn-group">
-          <button id="btn-start" class="btn btn-primary pulse">🚀 구구단 챌린지 시작하기</button>
+          <button id="btn-start" class="btn btn-primary pulse">🚀 선택한 단계 시작하기</button>
           <button id="btn-show-rankings" class="btn btn-secondary">🏆 명예의 전당 (Top 10)</button>
         </div>
       </div>
@@ -60,14 +71,20 @@
     <div id="screen-play" class="screen">
       <!-- 상단 스탯 바 -->
       <div class="stats-bar">
+        <div class="stat-item stage-info-item">
+          <div class="stat-label">도전 단계</div>
+          <div class="stat-value stage-badge-text" id="current-stage-badge">1단계 (3x3)</div>
+          <div class="stage-target-time" id="current-stage-target">목표: 2분 이내</div>
+        </div>
+
         <div class="stat-item timer-item">
-          <div class="stat-label">경과 시간</div>
+          <div class="stat-label">경과 시간 (제한 2분)</div>
           <div class="stat-value stopwatch-text" id="stopwatch-display">00:00.0</div>
         </div>
 
         <div class="stat-item progress-item">
           <div class="stat-label">입력 진행률</div>
-          <div class="stat-value" id="progress-display">0 / 64</div>
+          <div class="stat-value" id="progress-display">0 / 9</div>
           <div class="progress-bar-bg">
             <div id="progress-bar-fill" class="progress-bar-fill"></div>
           </div>
@@ -79,11 +96,11 @@
         </div>
       </div>
 
-      <!-- 9x9 구구단 그리드 보드 -->
+      <!-- 구구단 그리드 보드 -->
       <div class="grid-card" id="grid-card">
         <div class="table-responsive">
           <table class="gugudan-table" id="gugudan-table">
-            <!-- JS로 9x9 테이블 렌더링 -->
+            <!-- JS로 NxN 테이블 렌더링 -->
           </table>
         </div>
       </div>
@@ -93,7 +110,7 @@
         <div class="key-guide">
           💡 <kbd>Tab</kbd> / <kbd>Enter</kbd> / <kbd>방향키</kbd>로 칸 이동 후 우측 채점 클릭
         </div>
-        <button id="btn-submit-check" class="btn btn-submit-check pulse" tabindex="65">
+        <button id="btn-submit-check" class="btn btn-submit-check pulse" tabindex="100">
           ✍️ 채점 완료 (검사하기)
         </button>
       </div>
@@ -102,8 +119,8 @@
     <!-- 결과 화면 (Game Over / Clear Screen) -->
     <div id="screen-result" class="screen">
       <div class="hero-card result-card">
-        <div class="result-badge-clear">🎉 STAGE CLEAR!</div>
-        <h2 class="result-title">구구단 64칸 정복 완료!</h2>
+        <div class="result-badge-clear" id="result-badge-clear">🎉 STAGE CLEAR!</div>
+        <h2 class="result-title" id="result-title">1단계 (3x3) 정복 완료!</h2>
 
         <div class="result-player-name" id="result-player-name">홍길동 학생의 기록</div>
 
@@ -114,7 +131,7 @@
           </div>
           <div class="summary-box">
             <div class="box-label">총 문제 수</div>
-            <div class="box-val">64칸</div>
+            <div class="box-val" id="result-total-cells">9칸</div>
           </div>
           <div class="summary-box">
             <div class="box-label">채점 시도 횟수</div>
@@ -126,13 +143,23 @@
           </div>
         </div>
 
+        <!-- 다음 단계 해금 축하 배너 -->
+        <div id="stage-unlock-banner" class="stage-unlock-banner hidden">
+          🔓 <strong>축하합니다! 2분 안에 클리어하여 다음 단계가 해금되었습니다!</strong>
+        </div>
+
+        <div id="stage-time-warning" class="stage-time-warning hidden">
+          ⏱️ 클리어 성공! (다음 단계 해금을 위해서는 2분(02:00.0) 이내에 통과해야 합니다)
+        </div>
+
         <div id="new-record-alert" class="new-record-alert hidden">
           🏆 축하합니다! Top 10 명예의 전당에 진입했습니다!
         </div>
 
         <div class="btn-group">
-          <button id="btn-restart" class="btn btn-primary">🔄 다시 도전하기</button>
-          <button id="btn-result-rankings" class="btn btn-secondary">🏆 Top 10 순위 확인</button>
+          <button id="btn-next-stage" class="btn btn-primary hidden">🚀 다음 단계 도전하기</button>
+          <button id="btn-restart" class="btn btn-secondary">🔄 단계 선택으로 돌아가기</button>
+          <button id="btn-result-rankings" class="btn btn-secondary">🏆 순위 확인</button>
         </div>
       </div>
     </div>
@@ -145,8 +172,18 @@
           <button id="btn-close-modal" class="btn-close">&times;</button>
         </div>
 
+        <!-- 랭킹 단계 필터 탭 -->
+        <div class="ranking-tabs" id="ranking-tabs">
+          <button class="rank-tab-btn active" data-stage="all">전체 순위</button>
+          <button class="rank-tab-btn" data-stage="1">1단계(3x3)</button>
+          <button class="rank-tab-btn" data-stage="2">2단계(5x5)</button>
+          <button class="rank-tab-btn" data-stage="3">3단계(6x6)</button>
+          <button class="rank-tab-btn" data-stage="4">4단계(7x7)</button>
+          <button class="rank-tab-btn" data-stage="5">5단계(8x8)</button>
+        </div>
+
         <div class="ranking-info-banner">
-          ⏱️ 가장 빠른 시간 안에 64칸을 모두 맞힌 상위 10명에게 <strong>칭찬 포인트</strong>가 지급됩니다!
+          ⏱️ 가장 빠른 시간 안에 모든 칸을 맞힌 학생들의 명예의 전당입니다!
         </div>
 
         <div class="table-container">
@@ -154,6 +191,7 @@
             <thead>
               <tr>
                 <th>순위</th>
+                <th>단계</th>
                 <th>이름</th>
                 <th>클리어 시간</th>
                 <th>채점 시도</th>
