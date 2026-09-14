@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎵 계이름 스피드 챌린지 - 1분 음표 타자 게임</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="game-container">
+    <!-- 상단 헤더 -->
+    <header class="game-header">
+      <div class="badge-title">🎼 칭찬 포인트 획득 미션</div>
+      <h1 class="main-title">계이름 스피드 챌린지</h1>
+      <p class="subtitle">단계별 악보 음표를 맞혀 다음 단계를 해금하고 포인트를 획득하세요!</p>
+    </header>
+
+    <!-- 대기 화면 (Start Screen) -->
+    <div id="screen-start" class="screen active">
+      <div class="hero-card">
+        
+        <!-- 학생 정보 입력 / 출석 번호 자동 연동 표시 -->
+        <div class="player-input-wrap">
+          <div class="player-header-row">
+            <label for="player-name-input">👤 출석 번호 & 학생 이름:</label>
+            <span id="auto-login-badge" class="auto-login-badge hidden">✨ 자동 연동됨</span>
+          </div>
+          <div class="student-input-row">
+            <select id="player-num-select" class="player-num-select">
+              <option value="">번호 선택</option>
+              <!-- 1번~30번 동적 생성 -->
+            </select>
+            <input type="text" id="player-name-input" class="player-name-field" placeholder="예: 5반 12번 홍길동" maxlength="15" autocomplete="off">
+          </div>
+        </div>
+
+        <!-- 5단계 스테이지 선택 그리드 -->
+        <div class="stage-select-section">
+          <div class="stage-section-title">
+            <span>🎯 도전할 단계를 선택하세요</span>
+            <span class="stage-clear-tip">💡 목표 점수 달성 시 다음 단계 해금!</span>
+          </div>
+
+          <div class="stage-grid" id="stage-grid">
+            <!-- JS로 동적 생성 및 잠금/해금 상태 표시 -->
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button id="btn-start" class="btn btn-primary pulse">🚀 선택한 단계 시작하기</button>
+          <button id="btn-show-rankings" class="btn btn-secondary">🏆 명예의 전당 (Top 10)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 플레이 화면 (Play Screen) -->
+    <div id="screen-play" class="screen">
+      <!-- 상단 스탯 바 -->
+      <div class="stats-bar">
+        <div class="stat-item stage-info-item">
+          <div class="stat-label">도전 단계</div>
+          <div class="stat-value stage-badge-text" id="current-stage-badge">1단계</div>
+          <div class="stage-target-score" id="current-stage-target">목표: 1,500점</div>
+        </div>
+
+        <div class="stat-item timer-item">
+          <div class="stat-label">남은 시간</div>
+          <div class="stat-value" id="timer-display">60<small>s</small></div>
+          <div class="timer-gauge-bg">
+            <div id="timer-gauge-fill" class="timer-gauge-fill"></div>
+          </div>
+        </div>
+
+        <div class="stat-item score-item">
+          <div class="stat-label">현재 점수</div>
+          <div class="stat-value" id="score-display">0</div>
+        </div>
+
+        <div class="stat-item combo-item">
+          <div class="stat-label">연속 콤보</div>
+          <div class="stat-value combo-text" id="combo-display">0<span class="combo-unit">COMBO</span></div>
+        </div>
+      </div>
+
+      <!-- 오선보 캔버스 / SVG 영역 -->
+      <div class="staff-card" id="staff-card">
+        <div class="fever-overlay" id="fever-overlay"></div>
+        <div class="penalty-overlay" id="penalty-overlay">
+          <div class="penalty-content">
+            <span class="penalty-icon">⚠️</span>
+            <span class="penalty-text">삐빅! 1초 페널티</span>
+          </div>
+        </div>
+
+        <!-- 5선보 SVG (0 0 600 300 뷰포트로 낮은 라~높은 솔까지 완벽 수용) -->
+        <svg id="staff-svg" viewBox="0 0 600 300" class="staff-svg">
+          <!-- 5개의 오선 (간격 25px, 기준선 Y=80, 105, 130, 155, 180) -->
+          <g class="staff-lines">
+            <line x1="40" y1="80" x2="560" y2="80" class="staff-line" />
+            <line x1="40" y1="105" x2="560" y2="105" class="staff-line" />
+            <line x1="40" y1="130" x2="560" y2="130" class="staff-line" />
+            <line x1="40" y1="155" x2="560" y2="155" class="staff-line" />
+            <line x1="40" y1="180" x2="560" y2="180" class="staff-line" />
+          </g>
+
+          <!-- 시작/마디선 -->
+          <line x1="40" y1="80" x2="40" y2="180" class="bar-line" />
+          <line x1="560" y1="80" x2="560" y2="180" class="bar-line" />
+
+          <!-- 높은음자리표 (Treble Clef) -->
+          <text x="45" y="175" class="clef-symbol">𝄞</text>
+
+          <!-- 동적 음표 렌더링 컨테이너 -->
+          <g id="note-render-group"></g>
+        </svg>
+
+        <!-- 정답/오답 피드백 팝업 -->
+        <div id="feedback-bubble" class="feedback-bubble"></div>
+      </div>
+
+      <!-- 입력 인터페이스 -->
+      <div class="input-section">
+        <div class="typing-box-wrap" id="typing-box-wrap">
+          <input type="text" id="answer-input" class="answer-input" placeholder="계이름 입력 (예: 도)" autocomplete="off" autofocus>
+          <span class="input-hint">💡 키보드로 바로 치거나 아래 버튼을 누르세요</span>
+        </div>
+
+        <!-- 동적 화면 건반/버튼 그리드 (현재 단계에 맞춰 JS로 렌더링) -->
+        <div class="piano-buttons-grid" id="piano-buttons-grid">
+          <!-- JS로 동적 생성 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- 결과 화면 (Game Over Screen) -->
+    <div id="screen-result" class="screen">
+      <div class="hero-card result-card">
+        <div class="result-badge">⏰ TIME OVER!</div>
+        <h2 class="result-title">게임 종료</h2>
+
+        <div class="result-player-name" id="result-player-name">홍길동 학생의 기록</div>
+
+        <div class="score-summary-grid">
+          <div class="summary-box">
+            <div class="box-label">도전 단계</div>
+            <div class="box-val" id="result-stage-text">1단계</div>
+          </div>
+          <div class="summary-box">
+            <div class="box-label">최종 점수</div>
+            <div class="box-val highlight" id="result-score">0점</div>
+          </div>
+          <div class="summary-box">
+            <div class="box-label">정답 개수</div>
+            <div class="box-val" id="result-correct">0개</div>
+          </div>
+          <div class="summary-box">
+            <div class="box-label">최대 콤보</div>
+            <div class="box-val" id="result-max-combo">0</div>
+          </div>
+        </div>
+
+        <!-- 단계 클리어 / 다음 단계 해금 배너 -->
+        <div id="stage-clear-banner" class="stage-clear-banner hidden">
+          🎉 축하합니다! 목표 점수를 돌파하여 <strong>다음 단계가 해금되었습니다!</strong>
+        </div>
+
+        <div id="new-record-alert" class="new-record-alert hidden">
+          🏆 축하합니다! Top 10 명예의 전당에 진입했습니다!
+        </div>
+
+        <div class="btn-group">
+          <button id="btn-restart" class="btn btn-primary">🔄 단계 선택으로 돌아가기</button>
+          <button id="btn-result-rankings" class="btn btn-secondary">🏆 Top 10 순위 확인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 명예의 전당 모달 (Ranking Modal) -->
+    <div id="modal-rankings" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>🏆 명예의 전당 Top 10</h2>
+          <button id="btn-close-modal" class="btn-close">&times;</button>
+        </div>
+
+        <!-- 단계별 랭킹 탭 -->
+        <div class="ranking-tabs" id="ranking-tabs">
+          <button class="rank-tab-btn active" data-stage="1">1단계</button>
+          <button class="rank-tab-btn" data-stage="2">2단계</button>
+          <button class="rank-tab-btn" data-stage="3">3단계</button>
+          <button class="rank-tab-btn" data-stage="4">4단계</button>
+          <button class="rank-tab-btn" data-stage="5">5단계</button>
+        </div>
+
+        <div class="ranking-info-banner">
+          ✨ 단계별 상위 10명의 학생에게 <strong>칭찬 포인트</strong>가 지급됩니다!
+        </div>
+
+        <div class="table-container">
+          <table class="ranking-table">
+            <thead>
+              <tr>
+                <th>순위</th>
+                <th>이름</th>
+                <th>점수</th>
+                <th>정답수</th>
+                <th>최대콤보</th>
+                <th>일시</th>
+              </tr>
+            </thead>
+            <tbody id="ranking-list-body">
+              <!-- JS로 동적 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-actions">
+          <button id="btn-reset-rankings" class="btn-text-danger">⚠️ 랭킹 초기화 (선생님 전용)</button>
+          <button id="btn-close-modal-bottom" class="btn btn-primary">닫기</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="audio.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
