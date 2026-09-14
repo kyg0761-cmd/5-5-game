@@ -1,6 +1,7 @@
 // ✖️ 구구단 스피드 챌린지 5단계 게임 로직
 const PROGRESS_STORAGE_KEY = 'GUGUDAN_STUDENT_STAGES_V1';
 const RANKINGS_STORAGE_KEY = 'GUGUDAN_SPEED_RANKINGS_TOP10';
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzmwnxxN6B1PjwcE3Q8wZkLCpk03-8oN9LOMt9H26Gr7pJI-AQ7wi1QndbDWYCZ_-aMUQ/exec';
 
 const GUGUDAN_STAGES = [
   {
@@ -82,6 +83,9 @@ class GugudanSpeedGame {
     this.checkUrlParameters();
     this.renderStageSelectGrid();
     this.bindEvents();
+
+    // ☁️ 클라우드(구글 스프레드시트) 실시간 랭킹 및 진행상황 동기화
+    this.syncCloudData();
   }
 
   initDOM() {
@@ -155,6 +159,61 @@ class GugudanSpeedGame {
       return `num_${num}`;
     }
     return name ? `name_${name}` : 'guest_student';
+  }
+
+  // ☁️ 클라우드(구글 스프레드시트) 진행 상태 및 명예의 전당 동기화
+  async syncCloudData() {
+    try {
+      // 1. 전체 명예의 전당 랭킹 불러오기
+      fetch(`${GAS_API_URL}?action=getGugudanRankings`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.success && data.rankings && data.rankings.all) {
+            localStorage.setItem(RANKINGS_STORAGE_KEY, JSON.stringify(data.rankings.all));
+          }
+        })
+        .catch(e => console.log('Gugudan cloud rankings sync error', e));
+
+      // 2. 학생의 개인 클라우드 해금 진행상황 불러오기
+      const ident = this.getStudentIdentifier();
+      if (ident && ident !== 'guest_student') {
+        const numVal = this.playerNumSelect.value || '';
+        const nameVal = this.playerNameInput.value.trim() || '';
+        fetch(`${GAS_API_URL}?action=getStudentGameProgress&identifier=${encodeURIComponent(ident)}&num=${encodeURIComponent(numVal)}&name=${encodeURIComponent(nameVal)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.success && data.gugudan) {
+              const localProg = this.getStudentProgress();
+              const cloudUnlocked = data.gugudan.unlockedStage || 1;
+              const cloudBestTimes = data.gugudan.bestTimes || {};
+
+              let updated = false;
+              if (cloudUnlocked > (localProg.unlockedStage || 1)) {
+                localProg.unlockedStage = cloudUnlocked;
+                updated = true;
+              }
+
+              if (!localProg.bestTimes) localProg.bestTimes = {};
+              for (let s = 1; s <= 5; s++) {
+                if (cloudBestTimes[s] && (!localProg.bestTimes[s] || cloudBestTimes[s] < localProg.bestTimes[s])) {
+                  localProg.bestTimes[s] = cloudBestTimes[s];
+                  updated = true;
+                }
+              }
+
+              if (updated) {
+                const allData = JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY) || '{}');
+                allData[ident] = localProg;
+                localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allData));
+                this.renderStageSelectGrid();
+              }
+            }
+          })
+          .catch(e => console.log('Gugudan cloud student progress sync error', e));
+      }
+    } catch(e) {
+      console.warn('Sync cloud error', e);
+    }
   }
 
   // 학생별 진행 상태 (해금 단계 & 최고 클리어 기록)
@@ -787,6 +846,29 @@ class GugudanSpeedGame {
     list.sort((a, b) => a.timeSec - b.timeSec || a.attempts - b.attempts);
     localStorage.setItem(RANKINGS_STORAGE_KEY, JSON.stringify(list));
 
+    // ☁️ 구글 스프레드시트 클라우드 비동기 저장
+    try {
+      const payload = {
+        action: 'saveGugudanScore',
+        stage: record.stageId,
+        identifier: studentIdentifier,
+        num: this.playerNumSelect.value || '',
+        name: record.name,
+        timeSec: record.timeSec,
+        timeStr: record.timeStr,
+        attempts: record.attempts,
+        date: record.date || new Date().toLocaleDateString('ko-KR')
+      };
+      fetch(GAS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        mode: 'no-cors'
+      }).catch(e => console.log('Gugudan cloud save error', e));
+    } catch (e) {
+      console.log('Gugudan cloud save call error', e);
+    }
+
     return true;
   }
 
@@ -839,9 +921,21 @@ class GugudanSpeedGame {
     }
   }
 
-  openRankingsModal() {
+  async openRankingsModal() {
     this.renderRankingsTable();
     this.modalRankings.classList.remove('hidden');
+
+    // ☁️ 클라우드 최신 명예의 전당 백그라운드 갱신
+    try {
+      const res = await fetch(`${GAS_API_URL}?action=getGugudanRankings`);
+      const data = await res.json();
+      if (data && data.success && data.rankings && data.rankings.all) {
+        localStorage.setItem(RANKINGS_STORAGE_KEY, JSON.stringify(data.rankings.all));
+        this.renderRankingsTable();
+      }
+    } catch (e) {
+      // offline fallback
+    }
   }
 
   closeRankingsModal() {

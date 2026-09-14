@@ -28,6 +28,7 @@ const STAGES_CONFIG = [
 const GAME_DURATION = 60; // 60초 (1분)
 const STORAGE_PREFIX = 'MUSIC_NOTES_RANKING_STAGE_';
 const PROGRESS_STORAGE_KEY = 'MUSIC_NOTES_STUDENT_PROGRESS';
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzmwnxxN6B1PjwcE3Q8wZkLCpk03-8oN9LOMt9H26Gr7pJI-AQ7wi1QndbDWYCZ_-aMUQ/exec';
 
 // 한글 종성 매핑
 const JONGSEONG_TABLE = [
@@ -72,6 +73,9 @@ class MusicGame {
     this.checkUrlParameters();
     this.renderStageSelectGrid();
     this.bindEvents();
+
+    // ☁️ 클라우드(구글 스프레드시트) 실시간 랭킹 및 진행상황 동기화
+    this.syncCloudData();
   }
 
   initDOM() {
@@ -145,7 +149,66 @@ class MusicGame {
     if (num) {
       return `num_${num}`;
     }
-    return name || 'guest_student';
+    return name ? `name_${name}` : 'guest_student';
+  }
+
+  // ☁️ 클라우드(구글 스프레드시트) 진행 상태 및 명예의 전당 동기화
+  async syncCloudData() {
+    try {
+      // 1. 전체 명예의 전당 랭킹 불러오기
+      fetch(`${GAS_API_URL}?action=getMusicRankings`)
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.success && data.rankings) {
+            for (let s = 1; s <= 5; s++) {
+              if (data.rankings[s]) {
+                localStorage.setItem(`${STORAGE_PREFIX}${s}`, JSON.stringify(data.rankings[s]));
+              }
+            }
+          }
+        })
+        .catch(e => console.log('Cloud rankings sync error', e));
+
+      // 2. 학생의 개인 클라우드 해금 진행상황 불러오기
+      const ident = this.getStudentIdentifier();
+      if (ident && ident !== 'guest_student') {
+        const numVal = this.playerNumSelect.value || '';
+        const nameVal = this.playerNameInput.value.trim() || '';
+        fetch(`${GAS_API_URL}?action=getStudentGameProgress&identifier=${encodeURIComponent(ident)}&num=${encodeURIComponent(numVal)}&name=${encodeURIComponent(nameVal)}`)
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.success && data.music) {
+              const localProg = this.getStudentProgress();
+              const cloudUnlocked = data.music.unlockedStage || 1;
+              const cloudScores = data.music.highScores || {};
+
+              let updated = false;
+              if (cloudUnlocked > (localProg.unlockedStage || 1)) {
+                localProg.unlockedStage = cloudUnlocked;
+                updated = true;
+              }
+
+              if (!localProg.highScores) localProg.highScores = {};
+              for (let s = 1; s <= 5; s++) {
+                if ((cloudScores[s] || 0) > (localProg.highScores[s] || 0)) {
+                  localProg.highScores[s] = cloudScores[s];
+                  updated = true;
+                }
+              }
+
+              if (updated) {
+                const allData = JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY) || '{}');
+                allData[ident] = localProg;
+                localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allData));
+                this.renderStageSelectGrid();
+              }
+            }
+          })
+          .catch(e => console.log('Cloud student progress sync error', e));
+      }
+    } catch(e) {
+      console.warn('Sync cloud error', e);
+    }
   }
 
   // 칭찬 포인트 웹페이지 자동 연동 (URL Query 파라미터 감지)
@@ -227,7 +290,7 @@ class MusicGame {
         cur.highScores[stageId] = score;
       }
 
-      // 목표 점수 달성 시 다음 단계 해금!
+      // 목표 점수(5,000점) 달성 시 다음 단계 해금!
       const target = STAGES_CONFIG[stageId - 1].targetScore;
       let unlockedNext = false;
       if (score >= target && stageId < 5) {
@@ -730,6 +793,30 @@ class MusicGame {
 
     list.sort((a, b) => b.score - a.score || b.correct - a.correct || b.combo - a.combo);
     localStorage.setItem(`${STORAGE_PREFIX}${stageId}`, JSON.stringify(list));
+
+    // ☁️ 구글 스프레드시트 클라우드 비동기 저장
+    try {
+      const payload = {
+        action: 'saveMusicScore',
+        stage: stageId,
+        identifier: studentIdentifier,
+        num: this.playerNumSelect.value || '',
+        name: record.name,
+        score: record.score,
+        correct: record.correct,
+        combo: record.combo,
+        date: record.date || new Date().toLocaleDateString('ko-KR')
+      };
+      fetch(GAS_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        mode: 'no-cors'
+      }).catch(e => console.log('Cloud save error', e));
+    } catch (e) {
+      console.log('Cloud save call error', e);
+    }
+
     return true;
   }
 
@@ -776,7 +863,7 @@ class MusicGame {
     }
   }
 
-  openRankingsModal(stageId = 1) {
+  async openRankingsModal(stageId = 1) {
     this.currentModalStageTab = stageId;
     
     this.rankingTabs.querySelectorAll('.rank-tab-btn').forEach(btn => {
@@ -787,6 +874,24 @@ class MusicGame {
 
     this.renderRankingsTable(stageId);
     this.modalRankings.classList.remove('hidden');
+
+    // ☁️ 클라우드 최신 명예의 전당 백그라운드 갱신
+    try {
+      const res = await fetch(`${GAS_API_URL}?action=getMusicRankings`);
+      const data = await res.json();
+      if (data && data.success && data.rankings) {
+        for (let s = 1; s <= 5; s++) {
+          if (data.rankings[s]) {
+            localStorage.setItem(`${STORAGE_PREFIX}${s}`, JSON.stringify(data.rankings[s]));
+          }
+        }
+        if (this.currentModalStageTab === stageId) {
+          this.renderRankingsTable(stageId);
+        }
+      }
+    } catch (e) {
+      // offline fallback
+    }
   }
 
   closeRankingsModal() {
