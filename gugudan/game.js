@@ -131,12 +131,19 @@ class GugudanSpeedGame {
     this.rankingListBody = document.getElementById('ranking-list-body');
   }
 
-  // 1번 ~ 35번 출석 번호 드롭다운 옵션 생성
+  // 출석 번호 드롭다운 옵션 생성 (남학생 1~14번, 여학생 51~61번)
   populateAttendanceDropdown() {
     let options = '<option value="">번호 선택</option>';
-    for (let i = 1; i <= 35; i++) {
+    options += '<optgroup label="남학생 (1~14번)">';
+    for (let i = 1; i <= 14; i++) {
       options += `<option value="${i}">${i}번</option>`;
     }
+    options += '</optgroup>';
+    options += '<optgroup label="여학생 (51~61번)">';
+    for (let i = 51; i <= 61; i++) {
+      options += `<option value="${i}">${i}번</option>`;
+    }
+    options += '</optgroup>';
     this.playerNumSelect.innerHTML = options;
   }
 
@@ -201,7 +208,7 @@ class GugudanSpeedGame {
     }
   }
 
-  // URL 파라미터 감지 (?num=7&student=김민준&stage=2)
+  // URL 파라미터 감지 (?num=52&student=이서연&stage=2)
   checkUrlParameters() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
@@ -211,7 +218,7 @@ class GugudanSpeedGame {
 
       if (numParam) {
         const numVal = parseInt(numParam);
-        if (numVal >= 1 && numVal <= 35) {
+        if ((numVal >= 1 && numVal <= 14) || (numVal >= 51 && numVal <= 61) || (numVal >= 1 && numVal <= 70)) {
           this.studentNum = numVal.toString();
           this.playerNumSelect.value = this.studentNum;
         }

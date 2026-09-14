@@ -122,12 +122,19 @@ class MusicGame {
     this.rankingListBody = document.getElementById('ranking-list-body');
   }
 
-  // 1번 ~ 30번 출석 번호 드롭다운 옵션 동적 생성
+  // 1번~14번(남), 51~61번(여) 출석 번호 드롭다운 옵션 동적 생성
   populateAttendanceDropdown() {
     let options = '<option value="">번호 선택</option>';
-    for (let i = 1; i <= 35; i++) {
+    options += '<optgroup label="남학생 (1~14번)">';
+    for (let i = 1; i <= 14; i++) {
       options += `<option value="${i}">${i}번</option>`;
     }
+    options += '</optgroup>';
+    options += '<optgroup label="여학생 (51~61번)">';
+    for (let i = 51; i <= 61; i++) {
+      options += `<option value="${i}">${i}번</option>`;
+    }
+    options += '</optgroup>';
     this.playerNumSelect.innerHTML = options;
   }
 
@@ -151,7 +158,7 @@ class MusicGame {
 
       if (numParam) {
         const numVal = parseInt(numParam);
-        if (numVal >= 1 && numVal <= 35) {
+        if ((numVal >= 1 && numVal <= 14) || (numVal >= 51 && numVal <= 61) || (numVal >= 1 && numVal <= 70)) {
           this.studentNum = numVal.toString();
           this.playerNumSelect.value = this.studentNum;
         }
