@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>✖️ 구구단 스피드 챌린지 - 8x8 타임어택 게임</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="game-container">
+    <!-- 상단 헤더 -->
+    <header class="game-header">
+      <div class="badge-title">🎯 칭찬 포인트 획득 미션</div>
+      <h1 class="main-title">구구단 스피드 챌린지</h1>
+      <p class="subtitle">2단부터 9단까지 빈칸을 가장 빠른 시간 안에 모두 채워보세요!</p>
+    </header>
+
+    <!-- 대기 화면 (Start Screen) -->
+    <div id="screen-start" class="screen active">
+      <div class="hero-card">
+        
+        <!-- 학생 정보 입력 / 출석 번호 자동 연동 표시 -->
+        <div class="player-input-wrap">
+          <div class="player-header-row">
+            <label for="player-name-input">👤 출석 번호 & 학생 이름:</label>
+            <span id="auto-login-badge" class="auto-login-badge hidden">✨ 자동 연동됨</span>
+          </div>
+          <div class="student-input-row">
+            <select id="player-num-select" class="player-num-select">
+              <option value="">번호 선택</option>
+              <!-- 1번~35번 동적 생성 -->
+            </select>
+            <input type="text" id="player-name-input" class="player-name-field" placeholder="예: 5반 12번 홍길동" maxlength="15" autocomplete="off">
+          </div>
+        </div>
+
+        <div class="rules-box">
+          <h3>🎮 게임 규칙 및 조작법</h3>
+          <ul>
+            <li>⏱️ <strong>기록 측정:</strong> 64칸을 모두 올바르게 채울 때까지의 <strong>소요 시간(초)</strong>을 측정합니다. (빠를수록 높은 순위!)</li>
+            <li>⌨️ <strong>초고속 이동:</strong> <kbd>Tab</kbd> 키 또는 <kbd>방향키(↑↓←→)</kbd>, <kbd>Enter</kbd>로 칸을 자유롭게 이동할 수 있습니다.</li>
+            <li>📝 <strong>채점 방식:</strong> 다 채운 후 우측 하단 <strong>[채점 완료]</strong> 버튼을 누르면 빠른 속도로 정답을 검사합니다.</li>
+            <li>🔺 <strong>오답 표시:</strong> 틀린 칸이 있으면 <strong>빨간 펜 삼각형(△)</strong>으로 표시됩니다. 고친 후 다시 채점하세요!</li>
+            <li>🏆 <strong>명예의 전당:</strong> 가장 짧은 시간에 클리어한 Top 10 학생에게 <strong>칭찬 포인트</strong>가 지급됩니다!</li>
+          </ul>
+        </div>
+
+        <div class="btn-group">
+          <button id="btn-start" class="btn btn-primary pulse">🚀 구구단 챌린지 시작하기</button>
+          <button id="btn-show-rankings" class="btn btn-secondary">🏆 명예의 전당 (Top 10)</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 플레이 화면 (Play Screen) -->
+    <div id="screen-play" class="screen">
+      <!-- 상단 스탯 바 -->
+      <div class="stats-bar">
+        <div class="stat-item timer-item">
+          <div class="stat-label">경과 시간</div>
+          <div class="stat-value stopwatch-text" id="stopwatch-display">00:00.0</div>
+        </div>
+
+        <div class="stat-item progress-item">
+          <div class="stat-label">입력 진행률</div>
+          <div class="stat-value" id="progress-display">0 / 64</div>
+          <div class="progress-bar-bg">
+            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+          </div>
+        </div>
+
+        <div class="stat-item wrong-item">
+          <div class="stat-label">오답 칸 수</div>
+          <div class="stat-value wrong-count-text" id="wrong-display">0</div>
+        </div>
+      </div>
+
+      <!-- 9x9 구구단 그리드 보드 -->
+      <div class="grid-card" id="grid-card">
+        <div class="table-responsive">
+          <table class="gugudan-table" id="gugudan-table">
+            <!-- JS로 9x9 테이블 렌더링 -->
+          </table>
+        </div>
+      </div>
+
+      <!-- 하단 조작 액션 바 -->
+      <div class="game-bottom-action-bar">
+        <div class="key-guide">
+          💡 <kbd>Tab</kbd> / <kbd>Enter</kbd> / <kbd>방향키</kbd>로 빠르게 다음 칸 이동
+        </div>
+        <button id="btn-submit-check" class="btn btn-submit-check pulse">
+          ✍️ 채점 완료 (검사하기)
+        </button>
+      </div>
+    </div>
+
+    <!-- 결과 화면 (Game Over / Clear Screen) -->
+    <div id="screen-result" class="screen">
+      <div class="hero-card result-card">
+        <div class="result-badge-clear">🎉 STAGE CLEAR!</div>
+        <h2 class="result-title">구구단 64칸 정복 완료!</h2>
+
+        <div class="result-player-name" id="result-player-name">홍길동 학생의 기록</div>
+
+        <div class="score-summary-grid">
+          <div class="summary-box">
+            <div class="box-label">최종 클리어 시간</div>
+            <div class="box-val highlight" id="result-time">00:45.8</div>
+          </div>
+          <div class="summary-box">
+            <div class="box-label">총 문제 수</div>
+            <div class="box-val">64칸</div>
+          </div>
+          <div class="summary-box">
+            <div class="box-label">채점 시도 횟수</div>
+            <div class="box-val" id="result-attempts">1회</div>
+          </div>
+          <div class="summary-box">
+            <div class="box-label">초당 정답 속도</div>
+            <div class="box-val" id="result-speed">1.4칸/초</div>
+          </div>
+        </div>
+
+        <div id="new-record-alert" class="new-record-alert hidden">
+          🏆 축하합니다! Top 10 명예의 전당에 진입했습니다!
+        </div>
+
+        <div class="btn-group">
+          <button id="btn-restart" class="btn btn-primary">🔄 다시 도전하기</button>
+          <button id="btn-result-rankings" class="btn btn-secondary">🏆 Top 10 순위 확인</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 명예의 전당 모달 (Ranking Modal) -->
+    <div id="modal-rankings" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2>🏆 구구단 스피드 챌린지 명예의 전당</h2>
+          <button id="btn-close-modal" class="btn-close">&times;</button>
+        </div>
+
+        <div class="ranking-info-banner">
+          ⏱️ 가장 빠른 시간 안에 64칸을 모두 맞힌 상위 10명에게 <strong>칭찬 포인트</strong>가 지급됩니다!
+        </div>
+
+        <div class="table-container">
+          <table class="ranking-table">
+            <thead>
+              <tr>
+                <th>순위</th>
+                <th>이름</th>
+                <th>클리어 시간</th>
+                <th>채점 시도</th>
+                <th>일시</th>
+              </tr>
+            </thead>
+            <tbody id="ranking-list-body">
+              <!-- JS로 동적 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-actions">
+          <button id="btn-reset-rankings" class="btn-text-danger">⚠️ 랭킹 초기화 (선생님 전용)</button>
+          <button id="btn-close-modal-bottom" class="btn btn-primary">닫기</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="audio.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
