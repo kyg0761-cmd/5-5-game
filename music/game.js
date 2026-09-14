@@ -16,13 +16,13 @@ const ALL_NOTES_MASTER = [
   { name: '높은 솔', full: '높은 솔', y: 67.5, ledgers: [], stemDir: 'down', aliases: ['높은 솔', '높은솔'], type: 'high' }
 ];
 
-// 5단계 설정
+// 5단계 설정 (모든 단계 목표 점수 5,000점 통일)
 const STAGES_CONFIG = [
-  { id: 1, name: '1단계', rangeText: '도 ~ 솔', targetScore: 1500, noteNames: ['도', '레', '미', '파', '솔'] },
-  { id: 2, name: '2단계', rangeText: '도 ~ 높은 도', targetScore: 2000, noteNames: ['도', '레', '미', '파', '솔', '라', '시', '높은 도'] },
-  { id: 3, name: '3단계', rangeText: '낮은 라 ~ 높은 도', targetScore: 2200, noteNames: ['낮은 라', '낮은 시', '도', '레', '미', '파', '솔', '라', '시', '높은 도'] },
-  { id: 4, name: '4단계', rangeText: '낮은 라 ~ 높은 미', targetScore: 2500, noteNames: ['낮은 라', '낮은 시', '도', '레', '미', '파', '솔', '라', '시', '높은 도', '높은 레', '높은 미'] },
-  { id: 5, name: '5단계', rangeText: '낮은 라 ~ 높은 솔', targetScore: 2800, noteNames: ['낮은 라', '낮은 시', '도', '레', '미', '파', '솔', '라', '시', '높은 도', '높은 레', '높은 미', '높은 파', '높은 솔'] }
+  { id: 1, name: '1단계', rangeText: '도 ~ 솔', targetScore: 5000, noteNames: ['도', '레', '미', '파', '솔'] },
+  { id: 2, name: '2단계', rangeText: '도 ~ 높은 도', targetScore: 5000, noteNames: ['도', '레', '미', '파', '솔', '라', '시', '높은 도'] },
+  { id: 3, name: '3단계', rangeText: '낮은 라 ~ 높은 도', targetScore: 5000, noteNames: ['낮은 라', '낮은 시', '도', '레', '미', '파', '솔', '라', '시', '높은 도'] },
+  { id: 4, name: '4단계', rangeText: '낮은 라 ~ 높은 미', targetScore: 5000, noteNames: ['낮은 라', '낮은 시', '도', '레', '미', '파', '솔', '라', '시', '높은 도', '높은 레', '높은 미'] },
+  { id: 5, name: '5단계', rangeText: '낮은 라 ~ 높은 솔', targetScore: 5000, noteNames: ['낮은 라', '낮은 시', '도', '레', '미', '파', '솔', '라', '시', '높은 도', '높은 레', '높은 미', '높은 파', '높은 솔'] }
 ];
 
 const GAME_DURATION = 60; // 60초 (1분)
