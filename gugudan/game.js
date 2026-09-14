@@ -12,6 +12,10 @@ class GugudanSpeedGame {
     this.isPlaying = false;
     this.isCleared = false;
 
+    // 가로 및 세로 헤더 번호 (2~9단, 게임 시작 시 랜덤 셔플)
+    this.rowNumbers = [2, 3, 4, 5, 6, 7, 8, 9];
+    this.colNumbers = [2, 3, 4, 5, 6, 7, 8, 9];
+
     this.initDOM();
     this.populateAttendanceDropdown();
     this.checkUrlParameters();
@@ -55,6 +59,16 @@ class GugudanSpeedGame {
     this.resultSpeed = document.getElementById('result-speed');
     this.newRecordAlert = document.getElementById('new-record-alert');
     this.rankingListBody = document.getElementById('ranking-list-body');
+  }
+
+  // 배열 랜덤 셔플 (Fisher-Yates)
+  shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
   }
 
   // 1번 ~ 35번 출석 번호 드롭다운 옵션 생성
@@ -102,27 +116,31 @@ class GugudanSpeedGame {
     }
   }
 
-  // 9x9 구구단 그리드 테이블 렌더링 (헤더: 2~9단, 셀: 64개)
+  // 9x9 구구단 그리드 테이블 렌더링 (가로/세로 헤더: 무작위 섞인 2~9단, 셀: 64개)
   renderGugudanGrid() {
     let html = '<thead><tr><th class="cell-header-corner">✕</th>';
-    // 상단 가로 헤더 (2 ~ 9)
-    for (let col = 2; col <= 9; col++) {
-      html += `<th class="cell-header-top">${col}</th>`;
+    // 상단 가로 헤더 (무작위 섞인 순서)
+    for (let c = 0; c < 8; c++) {
+      const colVal = this.colNumbers[c];
+      html += `<th class="cell-header-top">${colVal}</th>`;
     }
     html += '</tr></thead><tbody>';
 
-    // 8개 행 (2 ~ 9)
-    for (let row = 2; row <= 9; row++) {
-      html += `<tr><th class="cell-header-left">${row}</th>`;
-      for (let col = 2; col <= 9; col++) {
+    // 8개 세로 행 (무작위 섞인 순서)
+    for (let r = 0; r < 8; r++) {
+      const rowVal = this.rowNumbers[r];
+      html += `<tr><th class="cell-header-left">${rowVal}</th>`;
+      for (let c = 0; c < 8; c++) {
+        const tabIdx = r * 8 + c + 1;
         html += `
-          <td id="cell-wrap-${row}-${col}">
+          <td id="cell-wrap-${r}-${c}">
             <input type="text" 
                    inputmode="numeric" 
                    class="gugudan-input" 
-                   id="input-${row}-${col}" 
-                   data-row="${row}" 
-                   data-col="${col}" 
+                   id="input-${r}-${c}" 
+                   data-row-idx="${r}" 
+                   data-col-idx="${c}" 
+                   tabindex="${tabIdx}" 
                    maxlength="2" 
                    autocomplete="off">
           </td>
@@ -195,17 +213,24 @@ class GugudanSpeedGame {
     this.isPlaying = true;
     this.isCleared = false;
 
-    // 테이블 셀 초기화
-    this.resetAllGridInputs();
+    // 🎲 가로/세로 헤더 순서 무작위 셔플 (매 판마다 새로운 조합으로 연습)
+    this.rowNumbers = this.shuffleArray([2, 3, 4, 5, 6, 7, 8, 9]);
+    this.colNumbers = this.shuffleArray([2, 3, 4, 5, 6, 7, 8, 9]);
+
+    // 테이블 새로 렌더링 및 셀 초기화
+    this.renderGugudanGrid();
     this.updateProgressUI();
     this.wrongDisplay.textContent = '0';
 
     this.showScreen('play');
 
-    // 첫 번째 칸(2x2)에 자동 포커스
+    // 첫 번째 칸(0, 0)에 자동 포커스
     setTimeout(() => {
-      const firstInput = document.getElementById('input-2-2');
-      if (firstInput) firstInput.focus();
+      const firstInput = document.getElementById('input-0-0');
+      if (firstInput) {
+        firstInput.focus();
+        firstInput.select();
+      }
     }, 100);
 
     // 스톱워치 타이머 가동 (0.1초 단위)
@@ -217,15 +242,6 @@ class GugudanSpeedGame {
     }, 100);
   }
 
-  resetAllGridInputs() {
-    const inputs = this.gugudanTable.querySelectorAll('.gugudan-input');
-    inputs.forEach(input => {
-      input.value = '';
-      const td = input.parentElement;
-      td.classList.remove('cell-correct', 'cell-wrong');
-    });
-  }
-
   formatTime(totalSec) {
     const min = Math.floor(totalSec / 60);
     const sec = Math.floor(totalSec % 60);
@@ -233,7 +249,7 @@ class GugudanSpeedGame {
     return `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}.${ms}`;
   }
 
-  // 셀 입력 감지
+  // 셀 입력 감지 (자동 이동 제거: Tab/Enter/방향키로 직접 이동 유도)
   handleCellInput(inputEl) {
     // 숫자 이외의 문자 필터링
     inputEl.value = inputEl.value.replace(/[^0-9]/g, '');
@@ -247,33 +263,28 @@ class GugudanSpeedGame {
     }
 
     this.updateProgressUI();
-
-    // 두 자리 숫자가 채워졌으면 자동으로 다음 칸으로 이동
-    if (inputEl.value.length >= 2) {
-      this.moveToNextCell(inputEl);
-    }
   }
 
   // 키보드 내비게이션 (Tab, Enter, 상하좌우 방향키)
   handleCellKeydown(e, inputEl) {
-    const row = parseInt(inputEl.getAttribute('data-row'));
-    const col = parseInt(inputEl.getAttribute('data-col'));
+    const r = parseInt(inputEl.getAttribute('data-row-idx'));
+    const c = parseInt(inputEl.getAttribute('data-col-idx'));
 
     if (e.key === 'ArrowRight') {
       e.preventDefault();
-      this.focusCell(row, col + 1);
+      this.focusCell(r, c + 1);
     } else if (e.key === 'ArrowLeft') {
       e.preventDefault();
-      this.focusCell(row, col - 1);
+      this.focusCell(r, c - 1);
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
-      this.focusCell(row + 1, col);
+      this.focusCell(r + 1, c);
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      this.focusCell(row - 1, col);
+      this.focusCell(r - 1, c);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      if (row === 9 && col === 9) {
+      if (r === 7 && c === 7) {
         // 마지막 칸에서 Enter 누르면 채점 버튼으로 이동
         this.btnSubmitCheck.focus();
       } else {
@@ -281,7 +292,7 @@ class GugudanSpeedGame {
       }
     } else if (e.key === 'Tab' && !e.shiftKey) {
       // 마지막 칸에서 Tab 누르면 채점 버튼으로 유도
-      if (row === 9 && col === 9) {
+      if (r === 7 && c === 7) {
         e.preventDefault();
         this.btnSubmitCheck.focus();
       }
@@ -289,7 +300,7 @@ class GugudanSpeedGame {
   }
 
   focusCell(r, c) {
-    if (r >= 2 && r <= 9 && c >= 2 && c <= 9) {
+    if (r >= 0 && r < 8 && c >= 0 && c < 8) {
       const target = document.getElementById(`input-${r}-${c}`);
       if (target) {
         target.focus();
@@ -299,16 +310,16 @@ class GugudanSpeedGame {
   }
 
   moveToNextCell(currentInput) {
-    let row = parseInt(currentInput.getAttribute('data-row'));
-    let col = parseInt(currentInput.getAttribute('data-col'));
+    let r = parseInt(currentInput.getAttribute('data-row-idx'));
+    let c = parseInt(currentInput.getAttribute('data-col-idx'));
 
-    if (col < 9) {
-      col++;
-    } else if (row < 9) {
-      row++;
-      col = 2;
+    if (c < 7) {
+      c++;
+    } else if (r < 7) {
+      r++;
+      c = 0;
     }
-    this.focusCell(row, col);
+    this.focusCell(r, c);
   }
 
   updateProgressUI() {
@@ -332,11 +343,15 @@ class GugudanSpeedGame {
     let firstWrongInput = null;
 
     // 64칸 순회 검사
-    for (let r = 2; r <= 9; r++) {
-      for (let c = 2; c <= 9; c++) {
+    for (let r = 0; r < 8; r++) {
+      const rowVal = this.rowNumbers[r];
+      for (let c = 0; c < 8; c++) {
+        const colVal = this.colNumbers[c];
+        const expected = rowVal * colVal;
         const inputEl = document.getElementById(`input-${r}-${c}`);
+        if (!inputEl) continue;
+
         const td = inputEl.parentElement;
-        const expected = r * c;
         const userVal = parseInt(inputEl.value.trim());
 
         if (userVal === expected) {
