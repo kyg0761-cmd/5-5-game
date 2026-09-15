@@ -760,30 +760,29 @@ td.cell-wrong::after {
 /* Modal Rankings */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   background: rgba(0, 0, 0, 0.75);
   backdrop-filter: blur(8px);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 100;
-  padding: 16px;
+  padding: 12px;
+  overflow-y: auto;
 }
 
 .modal-card {
   background: #1e293b;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 24px;
+  border-radius: 20px;
   width: 100%;
   max-width: 680px;
-  max-height: 90vh;
+  max-height: calc(100vh - 28px);
   display: flex;
   flex-direction: column;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
   overflow: hidden;
+  margin: auto;
   animation: modalPop 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -796,22 +795,24 @@ td.cell-wrong::after {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 18px 24px;
+  padding: 12px 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .modal-header h2 {
   font-family: 'Jua', cursive;
-  font-size: 1.4rem;
-  color: #f8fafc;
+  font-size: 1.25rem;
+  color: #38bdf8;
 }
 
 .btn-close {
   background: transparent;
   border: none;
-  font-size: 1.8rem;
+  font-size: 1.6rem;
   color: #94a3b8;
   cursor: pointer;
+  line-height: 1;
 }
 
 .btn-close:hover {
@@ -822,20 +823,20 @@ td.cell-wrong::after {
 .ranking-tabs {
   display: flex;
   gap: 6px;
-  padding: 10px 20px 0 20px;
+  padding: 8px 16px;
   overflow-x: auto;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
 }
 
 .rank-tab-btn {
   background: rgba(15, 23, 42, 0.6);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  border-bottom: none;
-  border-radius: 8px 8px 0 0;
+  border-radius: 8px;
   color: #94a3b8;
-  padding: 6px 12px;
+  padding: 5px 12px;
   font-family: 'Jua', cursive;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s ease;
@@ -849,48 +850,51 @@ td.cell-wrong::after {
 }
 
 .ranking-info-banner {
-  padding: 10px 24px;
+  padding: 6px 16px;
   background: rgba(15, 23, 42, 0.4);
   color: #94a3b8;
-  font-size: 0.85rem;
+  font-size: 0.8rem;
+  flex-shrink: 0;
 }
 
 .table-container {
-  padding: 12px 24px;
+  padding: 8px 16px;
   overflow-y: auto;
-  max-height: 400px;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .ranking-table {
   width: 100%;
   border-collapse: collapse;
   text-align: center;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
 }
 
 .ranking-table th {
   background: rgba(15, 23, 42, 0.8);
-  padding: 10px;
+  padding: 8px 6px;
   color: #94a3b8;
   font-weight: 700;
+  font-size: 0.78rem;
   border-bottom: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .ranking-table td {
-  padding: 10px;
+  padding: 8px 6px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   color: #f1f5f9;
 }
 
 .rank-badge {
   display: inline-block;
-  width: 26px;
-  height: 26px;
-  line-height: 26px;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.1);
   font-weight: 800;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
 }
 
 .rank-1 .rank-badge {
@@ -921,18 +925,19 @@ td.cell-wrong::after {
 }
 
 .empty-ranking {
-  padding: 30px !important;
+  padding: 24px !important;
   color: #64748b;
   font-style: italic;
 }
 
 .modal-actions {
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
-  padding: 16px 24px;
+  padding: 10px 18px;
   background: rgba(15, 23, 42, 0.6);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
 }
 
 .btn-text-danger {
