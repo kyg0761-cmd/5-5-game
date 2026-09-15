@@ -179,9 +179,13 @@
           🏆 축하합니다! 5,000점 이상을 달성하여 명예의 전당에 등재되었습니다!
         </div>
 
-        <div class="btn-group">
-          <button id="btn-restart" class="btn btn-primary">🔄 다시 도전하기</button>
-          <button id="btn-result-rankings" class="btn btn-secondary">🏆 명예의 전당 보기</button>
+        <div class="btn-group" style="display: flex; flex-direction: column; gap: 10px; width: 100%;">
+          <button id="btn-next-stage" class="btn btn-primary hidden" style="background: linear-gradient(135deg, #059669, #10b981); font-size: 1.15rem; padding: 14px;">🚀 다음 단계 도전하기</button>
+          <div style="display: flex; gap: 8px; width: 100%;">
+            <button id="btn-retry-stage" class="btn btn-primary" style="flex: 1;">🔄 현재 단계 다시하기</button>
+            <button id="btn-restart" class="btn btn-secondary" style="flex: 1;">🗺️ 다른 단계 선택</button>
+          </div>
+          <button id="btn-result-rankings" class="btn btn-secondary" style="width: 100%;">🏆 명예의 전당 보기</button>
         </div>
       </div>
     </div>
@@ -225,9 +229,8 @@
           </table>
         </div>
 
-        <div class="modal-actions">
-          <button id="btn-reset-rankings" class="btn-text-danger">⚠️ 랭킹 초기화 (선생님 전용)</button>
-          <button id="btn-close-modal-bottom" class="btn btn-primary">닫기</button>
+        <div class="modal-actions" style="justify-content: center;">
+          <button id="btn-close-modal-bottom" class="btn btn-primary" style="min-width: 140px;">닫기</button>
         </div>
       </div>
     </div>

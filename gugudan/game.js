@@ -3,6 +3,25 @@ const PROGRESS_STORAGE_KEY = 'GUGUDAN_STUDENT_STAGES_V1';
 const RANKINGS_STORAGE_KEY = 'GUGUDAN_SPEED_RANKINGS_TOP10';
 const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzmwnxxN6B1PjwcE3Q8wZkLCpk03-8oN9LOMt9H26Gr7pJI-AQ7wi1QndbDWYCZ_-aMUQ/exec';
 
+// 🔑 학생 고유 식별 키 정규화 함수 (번호/이름 중복 방지)
+function normalizeStudentKey(num, name, identifier) {
+  num = (num || "").toString().trim();
+  name = (name || "").toString().trim();
+  identifier = (identifier || "").toString().trim();
+
+  const mNum = num.match(/^(\d+)$/);
+  if (mNum) return "student_num_" + parseInt(mNum[1], 10);
+
+  const mIdent = identifier.match(/num_(\d+)/i);
+  if (mIdent) return "student_num_" + parseInt(mIdent[1], 10);
+
+  const mName = name.match(/(?:student|^|학생\s*)(\d+)(?:번|\s*학생|$)/i);
+  if (mName) return "student_num_" + parseInt(mName[1], 10);
+
+  const cleanName = (name || identifier || "guest").replace(/\s+/g, "").toLowerCase();
+  return "student_name_" + cleanName;
+}
+
 const GUGUDAN_STAGES = [
   {
     id: 1,
@@ -103,12 +122,12 @@ class GugudanSpeedGame {
     this.btnStart = document.getElementById('btn-start');
     this.btnShowRankings = document.getElementById('btn-show-rankings');
     this.btnRestart = document.getElementById('btn-restart');
+    this.btnRetryStage = document.getElementById('btn-retry-stage');
     this.btnNextStage = document.getElementById('btn-next-stage');
     this.btnResultRankings = document.getElementById('btn-result-rankings');
     this.modalRankings = document.getElementById('modal-rankings');
     this.btnCloseModal = document.getElementById('btn-close-modal');
     this.btnCloseModalBottom = document.getElementById('btn-close-modal-bottom');
-    this.btnResetRankings = document.getElementById('btn-reset-rankings');
     this.rankingTabs = document.getElementById('ranking-tabs');
 
     // 플레이 UI
@@ -335,10 +354,10 @@ class GugudanSpeedGame {
       let statusBadge = '';
       if (isLocked) {
         statusBadge = '<span class="stage-status-badge">🔒 잠김</span>';
+      } else if (isSelected) {
+        statusBadge = '<span class="stage-status-badge" style="background:#0284c7; color:white; font-weight:700;">👉 선택됨</span>';
       } else if (isCleared) {
         statusBadge = `<span class="stage-status-badge">⭐ ${this.formatTime(best)}</span>`;
-      } else if (isSelected) {
-        statusBadge = '<span class="stage-status-badge">👉 선택됨</span>';
       } else {
         statusBadge = '<span class="stage-status-badge" style="color:#38bdf8;">도전 가능</span>';
       }
@@ -356,11 +375,17 @@ class GugudanSpeedGame {
 
     this.stageGrid.innerHTML = html;
 
-    // 단계 카드 클릭 이벤트
+    // 시작 버튼 텍스트를 현재 선택된 단계에 맞게 동적 업데이트!
+    const curStage = GUGUDAN_STAGES.find(s => s.id === this.currentStageId) || GUGUDAN_STAGES[0];
+    if (this.btnStart && curStage) {
+      this.btnStart.innerHTML = `🎯 [ ${curStage.name} (${curStage.size}x${curStage.size}) ] 챌린지 시작! ➔`;
+    }
+
+    // 단계 카드 클릭 이벤트 (해금된 모든 단계 자유롭게 선택 가능)
     this.stageGrid.querySelectorAll('.stage-card').forEach(card => {
       card.addEventListener('click', () => {
         const sId = parseInt(card.getAttribute('data-stage-id'));
-        if (sId > unlockedMax) {
+        if (sId > (this.getStudentProgress().unlockedStage || 1)) {
           sounds.playWrong();
           alert(`🔒 ${sId}단계는 잠겨있습니다!\n이전 단계를 2분(120초) 이내에 먼저 클리어해야 도전할 수 있습니다.`);
           return;
@@ -440,6 +465,7 @@ class GugudanSpeedGame {
         }
       }
       this.renderStageSelectGrid();
+      this.syncCloudData();
     });
 
     this.playerNameInput.addEventListener('input', () => {
@@ -455,7 +481,13 @@ class GugudanSpeedGame {
     this.btnResultRankings.addEventListener('click', () => this.openRankingsModal());
     this.btnCloseModal.addEventListener('click', () => this.closeRankingsModal());
     this.btnCloseModalBottom.addEventListener('click', () => this.closeRankingsModal());
-    this.btnResetRankings.addEventListener('click', () => this.resetRankings());
+
+    // 결과 화면 버튼들
+    if (this.btnRetryStage) {
+      this.btnRetryStage.addEventListener('click', () => {
+        this.startGame();
+      });
+    }
 
     this.btnRestart.addEventListener('click', () => {
       this.renderStageSelectGrid();
@@ -804,11 +836,12 @@ class GugudanSpeedGame {
       const data = localStorage.getItem(RANKINGS_STORAGE_KEY);
       const rawList = data ? JSON.parse(data) : [];
 
-      // 학생별 단계당 최고 기록 1개만 유지 (중복 제거)
+      // 학생별 단계당 최고 기록 1개만 엄격하게 유지 (중복 제거)
       const map = new Map();
       rawList.forEach(item => {
         if (item.timeSec <= 120) {
-          const idKey = `${item.stageId}_${item.identifier || item.name}`;
+          const sKey = normalizeStudentKey(item.num, item.name, item.identifier);
+          const idKey = `${item.stageId}_${sKey}`;
           if (!map.has(idKey) || item.timeSec < map.get(idKey).timeSec) {
             map.set(idKey, item);
           }
@@ -830,9 +863,11 @@ class GugudanSpeedGame {
     }
 
     const list = this.getRankings();
-    const studentIdentifier = record.identifier || record.name;
+    const numVal = this.playerNumSelect.value || '';
+    const studentIdentifier = record.identifier || (numVal ? `num_${numVal}` : `name_${record.name}`);
+    const studentKey = normalizeStudentKey(numVal, record.name, studentIdentifier);
 
-    const existingIndex = list.findIndex(r => r.stageId === record.stageId && ((r.identifier && r.identifier === studentIdentifier) || r.name === record.name));
+    const existingIndex = list.findIndex(r => r.stageId === record.stageId && normalizeStudentKey(r.num, r.name, r.identifier) === studentKey);
 
     if (existingIndex !== -1) {
       // 이미 기록이 있을 때: 이번 기록이 더 빠를 때만 갱신
@@ -852,7 +887,7 @@ class GugudanSpeedGame {
         action: 'saveGugudanScore',
         stage: record.stageId,
         identifier: studentIdentifier,
-        num: this.playerNumSelect.value || '',
+        num: numVal,
         name: record.name,
         timeSec: record.timeSec,
         timeStr: record.timeStr,
@@ -911,14 +946,6 @@ class GugudanSpeedGame {
     });
 
     this.rankingListBody.innerHTML = rows;
-  }
-
-  resetRankings() {
-    if (confirm('정말로 구구단 스피드 챌린지의 모든 명예의 전당 기록을 초기화하시겠습니까?')) {
-      localStorage.removeItem(RANKINGS_STORAGE_KEY);
-      this.renderRankingsTable();
-      alert('명예의 전당 기록이 초기화되었습니다.');
-    }
   }
 
   async openRankingsModal() {
