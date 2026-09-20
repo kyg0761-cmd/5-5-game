@@ -22,6 +22,18 @@ function normalizeStudentKey(num, name, identifier) {
   return "student_name_" + cleanName;
 }
 
+// 🏷️ 명예의 전당 등록 시 출석 번호 강제 접두사 포맷터 (예: 51번 멋쟁이토끼)
+function formatRankingDisplayName(num, rawName) {
+  rawName = (rawName || "").trim();
+  num = (num || "").toString().trim();
+  if (!num) return rawName || "학생";
+
+  // 번호 중복 방지 (예: "51번 홍길동" -> "51번 홍길동", "홍길동" -> "51번 홍길동")
+  const numPrefixRegex = new RegExp(`^${num}\\s*번?\\s*`, 'i');
+  const cleanName = rawName.replace(numPrefixRegex, '').trim() || '학생';
+  return `${num}번 ${cleanName}`;
+}
+
 const GUGUDAN_STAGES = [
   {
     id: 1,
@@ -82,9 +94,11 @@ const GUGUDAN_STAGES = [
 
 class GugudanSpeedGame {
   constructor() {
+    window.gameInstance = this;
     this.studentNum = '';
     this.playerName = '';
     this.currentStageId = 1;
+    this.userHasManuallySelectedStage = false;
     this.startTime = 0;
     this.timerInterval = null;
     this.elapsedSeconds = 0;
@@ -98,7 +112,6 @@ class GugudanSpeedGame {
     this.colNumbers = [];
 
     this.initDOM();
-    this.populateAttendanceDropdown();
     this.checkUrlParameters();
     this.renderStageSelectGrid();
     this.bindEvents();
@@ -117,6 +130,7 @@ class GugudanSpeedGame {
     // UI 요소
     this.playerNumSelect = document.getElementById('player-num-select');
     this.playerNameInput = document.getElementById('player-name-input');
+    this.studentNumText = document.getElementById('student-num-text');
     this.autoLoginBadge = document.getElementById('auto-login-badge');
     this.stageGrid = document.getElementById('stage-grid');
     this.btnStart = document.getElementById('btn-start');
@@ -154,29 +168,12 @@ class GugudanSpeedGame {
     this.rankingListBody = document.getElementById('ranking-list-body');
   }
 
-  // 출석 번호 드롭다운 옵션 생성 (남학생 1~14번, 여학생 51~61번)
-  populateAttendanceDropdown() {
-    let options = '<option value="">번호 선택</option>';
-    options += '<optgroup label="남학생 (1~14번)">';
-    for (let i = 1; i <= 14; i++) {
-      options += `<option value="${i}">${i}번</option>`;
-    }
-    options += '</optgroup>';
-    options += '<optgroup label="여학생 (51~61번)">';
-    for (let i = 51; i <= 61; i++) {
-      options += `<option value="${i}">${i}번</option>`;
-    }
-    options += '</optgroup>';
-    this.playerNumSelect.innerHTML = options;
-  }
-
-  // 학생 식별 키
+  // 학생 식별 키 (출석 번호 최우선 고정)
   getStudentIdentifier() {
-    const num = this.playerNumSelect.value;
-    const name = this.playerNameInput.value.trim();
-    if (num) {
-      return `num_${num}`;
+    if (this.studentNum) {
+      return `num_${this.studentNum}`;
     }
+    const name = this.playerNameInput ? this.playerNameInput.value.trim() : this.playerName;
     return name ? `name_${name}` : 'guest_student';
   }
 
@@ -196,8 +193,8 @@ class GugudanSpeedGame {
       // 2. 학생의 개인 클라우드 해금 진행상황 불러오기
       const ident = this.getStudentIdentifier();
       if (ident && ident !== 'guest_student') {
-        const numVal = this.playerNumSelect.value || '';
-        const nameVal = this.playerNameInput.value.trim() || '';
+        const numVal = this.studentNum || '';
+        const nameVal = (this.playerNameInput ? this.playerNameInput.value.trim() : '') || this.playerName || '';
         fetch(`${GAS_API_URL}?action=getStudentGameProgress&identifier=${encodeURIComponent(ident)}&num=${encodeURIComponent(numVal)}&name=${encodeURIComponent(nameVal)}`)
           .then(res => res.json())
           .then(data => {
@@ -224,6 +221,11 @@ class GugudanSpeedGame {
                 const allData = JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY) || '{}');
                 allData[ident] = localProg;
                 localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allData));
+                
+                // 사용자가 수동으로 이전 단계를 클릭해두지 않은 경우에만 최고 해금 단계로 맞춤
+                if (!this.userHasManuallySelectedStage) {
+                  this.currentStageId = localProg.unlockedStage || 1;
+                }
                 this.renderStageSelectGrid();
               }
             }
@@ -277,8 +279,8 @@ class GugudanSpeedGame {
         }
       }
 
+      allData[studentKey] = cur;
       localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allData));
-      this.renderStageSelectGrid();
       return { unlockedNext, newMaxStage: cur.unlockedStage };
     } catch (e) {
       console.warn('Save progress error', e);
@@ -286,37 +288,42 @@ class GugudanSpeedGame {
     }
   }
 
-  // URL 파라미터 감지 (?num=52&student=이서연&stage=2)
+  // URL 파라미터 및 로컬 스토리지 감지 (?num=52&student=이서연&stage=2)
   checkUrlParameters() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const numParam = urlParams.get('num') || urlParams.get('number') || urlParams.get('id');
-      const studentParam = urlParams.get('student') || urlParams.get('name') || urlParams.get('user');
+      let numParam = urlParams.get('num') || urlParams.get('number') || urlParams.get('id');
+      let studentParam = urlParams.get('student') || urlParams.get('name') || urlParams.get('user');
       const stageParam = urlParams.get('stage');
+
+      // 1. URL 파라미터가 없으면 칭찬포인트 웹페이지 로컬 스토리지에서 승계
+      if (!numParam) {
+        numParam = localStorage.getItem("55_selected_student_num");
+      }
+      if (!studentParam) {
+        studentParam = localStorage.getItem("55_selected_student_name");
+      }
 
       if (numParam) {
         const numVal = parseInt(numParam);
-        if ((numVal >= 1 && numVal <= 14) || (numVal >= 51 && numVal <= 61) || (numVal >= 1 && numVal <= 70)) {
+        if ((numVal >= 1 && numVal <= 14) || (numVal >= 51 && numVal <= 61) || (numVal >= 1 && numVal <= 100)) {
           this.studentNum = numVal.toString();
-          this.playerNumSelect.value = this.studentNum;
         }
       }
 
       if (studentParam) {
         this.playerName = studentParam.trim();
-        this.playerNameInput.value = this.playerName;
       } else if (this.studentNum) {
         this.playerName = `${this.studentNum}번 학생`;
-        this.playerNameInput.value = this.playerName;
       }
 
-      if (this.studentNum || studentParam) {
-        this.autoLoginBadge.classList.remove('hidden');
-        if (this.studentNum) {
-          this.autoLoginBadge.textContent = `✨ ${this.studentNum}번 학생 연동됨`;
-        } else {
-          this.autoLoginBadge.textContent = `✨ 자동 연동됨`;
-        }
+      // 출석 번호 고정 뱃지 갱신
+      if (this.studentNumText) {
+        this.studentNumText.textContent = this.studentNum ? `${this.studentNum}번` : '미지정';
+      }
+
+      if (this.playerNameInput) {
+        this.playerNameInput.value = this.playerName;
       }
 
       const progress = this.getStudentProgress();
@@ -326,6 +333,7 @@ class GugudanSpeedGame {
         const reqStage = parseInt(stageParam);
         if (reqStage <= progress.unlockedStage) {
           this.currentStageId = reqStage;
+          this.userHasManuallySelectedStage = true;
         }
       }
     } catch (e) {
@@ -333,37 +341,64 @@ class GugudanSpeedGame {
     }
   }
 
-  // 5단계 스테이지 선택 카드 UI 렌더링
+  // 🎯 단계 선택 메서드 (전역/인라인에서 즉시 실행)
+  selectStage(sId) {
+    sId = parseInt(sId, 10);
+    const progress = this.getStudentProgress();
+    const unlockedMax = progress.unlockedStage || 1;
+
+    if (sId > unlockedMax) {
+      if (window.sounds && window.sounds.playWrong) sounds.playWrong();
+      alert(`🔒 ${sId}단계는 잠겨있습니다!\n이전 단계를 2분(120초) 이내에 먼저 클리어해야 도전할 수 있습니다.`);
+      return;
+    }
+
+    if (window.sounds && window.sounds.playPop) sounds.playPop();
+    this.userHasManuallySelectedStage = true;
+    this.currentStageId = sId;
+    this.renderStageSelectGrid();
+  }
+
+  // 5단계 스테이지 선택 카드 UI 렌더링 (단일 선택 완전 보장)
   renderStageSelectGrid() {
     const progress = this.getStudentProgress();
     const unlockedMax = progress.unlockedStage || 1;
     const bestTimes = progress.bestTimes || {};
 
+    // 만약 현재 선택된 단계가 아직 해금되지 않은 잠긴 단계라면 해금된 최고 단계로 보정
+    if (this.currentStageId > unlockedMax) {
+      this.currentStageId = unlockedMax;
+    }
+
     let html = '';
     GUGUDAN_STAGES.forEach(st => {
       const isLocked = st.id > unlockedMax;
-      const isSelected = st.id === this.currentStageId;
+      const isSelected = (st.id === this.currentStageId);
       const best = bestTimes[st.id];
       const isCleared = !!best;
 
       let cardClass = 'stage-card';
-      if (isLocked) cardClass += ' locked';
-      if (isSelected) cardClass += ' selected';
-      if (isCleared) cardClass += ' cleared';
+      if (isLocked) {
+        cardClass += ' locked';
+      } else if (isSelected) {
+        cardClass += ' selected';
+      } else if (isCleared) {
+        cardClass += ' cleared';
+      }
 
       let statusBadge = '';
       if (isLocked) {
-        statusBadge = '<span class="stage-status-badge">🔒 잠김</span>';
+        statusBadge = '<span class="stage-status-badge badge-locked">🔒 잠김</span>';
       } else if (isSelected) {
-        statusBadge = '<span class="stage-status-badge" style="background:#0284c7; color:white; font-weight:700;">👉 선택됨</span>';
+        statusBadge = '<span class="stage-status-badge badge-selected">👉 선택됨</span>';
       } else if (isCleared) {
-        statusBadge = `<span class="stage-status-badge">⭐ ${this.formatTime(best)}</span>`;
+        statusBadge = `<span class="stage-status-badge badge-cleared">⭐ ${this.formatTime(best)}</span>`;
       } else {
-        statusBadge = '<span class="stage-status-badge" style="color:#38bdf8;">도전 가능</span>';
+        statusBadge = '<span class="stage-status-badge badge-available">도전 가능</span>';
       }
 
       html += `
-        <div class="${cardClass}" data-stage-id="${st.id}">
+        <div class="${cardClass}" data-stage-id="${st.id}" onclick="window.gameInstance && window.gameInstance.selectStage(${st.id})">
           <div class="stage-card-icon">${st.icon}</div>
           <div class="stage-num-badge">${st.name}</div>
           <div class="stage-size-text">${st.size}x${st.size} (${st.totalCells}칸)</div>
@@ -380,21 +415,6 @@ class GugudanSpeedGame {
     if (this.btnStart && curStage) {
       this.btnStart.innerHTML = `🎯 [ ${curStage.name} (${curStage.size}x${curStage.size}) ] 챌린지 시작! ➔`;
     }
-
-    // 단계 카드 클릭 이벤트 (해금된 모든 단계 자유롭게 선택 가능)
-    this.stageGrid.querySelectorAll('.stage-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const sId = parseInt(card.getAttribute('data-stage-id'));
-        if (sId > (this.getStudentProgress().unlockedStage || 1)) {
-          sounds.playWrong();
-          alert(`🔒 ${sId}단계는 잠겨있습니다!\n이전 단계를 2분(120초) 이내에 먼저 클리어해야 도전할 수 있습니다.`);
-          return;
-        }
-        sounds.playPop();
-        this.currentStageId = sId;
-        this.renderStageSelectGrid();
-      });
-    });
   }
 
   // 배열 랜덤 셔플 (Fisher-Yates)
@@ -457,25 +477,16 @@ class GugudanSpeedGame {
   }
 
   bindEvents() {
-    this.playerNumSelect.addEventListener('change', () => {
-      const num = this.playerNumSelect.value;
-      if (num) {
-        if (!this.playerNameInput.value || this.playerNameInput.value.includes('번 학생')) {
-          this.playerNameInput.value = `${num}번 학생`;
-        }
-      }
-      this.renderStageSelectGrid();
-      this.syncCloudData();
-    });
-
-    this.playerNameInput.addEventListener('input', () => {
-      this.renderStageSelectGrid();
-    });
+    if (this.playerNameInput) {
+      this.playerNameInput.addEventListener('input', () => {
+        this.playerName = this.playerNameInput.value.trim();
+      });
+      this.playerNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') this.startGame();
+      });
+    }
 
     this.btnStart.addEventListener('click', () => this.startGame());
-    this.playerNameInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') this.startGame();
-    });
 
     this.btnShowRankings.addEventListener('click', () => this.openRankingsModal());
     this.btnResultRankings.addEventListener('click', () => this.openRankingsModal());
@@ -789,11 +800,13 @@ class GugudanSpeedGame {
     }
 
     // 랭킹 저장 (2분 이내 클리어한 학생의 1인 1 최고 기록)
+    const displayName = formatRankingDisplayName(this.studentNum, this.playerName);
     const isNewRecord = this.saveRanking({
       identifier: this.getStudentIdentifier(),
       stageId: currentStage.id,
       stageName: `${currentStage.name}(${currentStage.size}x${currentStage.size})`,
-      name: this.playerName,
+      name: displayName,
+      num: this.studentNum || '',
       timeSec: this.elapsedSeconds,
       timeStr: finalTimeStr,
       attempts: this.checkAttempts,
@@ -811,8 +824,8 @@ class GugudanSpeedGame {
     try {
       const payload = {
         type: 'GUGUDAN_GAME_RESULT',
-        studentNum: this.playerNumSelect.value || '',
-        studentName: this.playerName,
+        studentNum: this.studentNum || '',
+        studentName: displayName,
         stage: currentStage.id,
         stageName: currentStage.name,
         timeSec: this.elapsedSeconds,
@@ -863,7 +876,7 @@ class GugudanSpeedGame {
     }
 
     const list = this.getRankings();
-    const numVal = this.playerNumSelect.value || '';
+    const numVal = this.studentNum || record.num || '';
     const studentIdentifier = record.identifier || (numVal ? `num_${numVal}` : `name_${record.name}`);
     const studentKey = normalizeStudentKey(numVal, record.name, studentIdentifier);
 

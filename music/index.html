@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260920_v3">
 </head>
 <body>
   <div class="game-container">
@@ -25,15 +25,16 @@
         <!-- 학생 정보 입력 / 출석 번호 자동 연동 표시 -->
         <div class="player-input-wrap">
           <div class="player-header-row">
-            <label for="player-name-input">👤 출석 번호 & 학생 이름:</label>
-            <span id="auto-login-badge" class="auto-login-badge hidden">✨ 자동 연동됨</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="student-num-badge" class="student-num-badge">🏷️ 출석 번호: <b id="student-num-text">51번</b></span>
+              <span id="auto-login-badge" class="auto-login-badge">🔒 연동 고정됨</span>
+            </div>
+            <label for="player-name-input" style="font-size:0.85rem; color:#94a3b8;">* 닉네임 자유 설정 가능</label>
           </div>
           <div class="student-input-row">
-            <select id="player-num-select" class="player-num-select">
-              <option value="">번호 선택</option>
-              <!-- 1번~30번 동적 생성 -->
-            </select>
-            <input type="text" id="player-name-input" class="player-name-field" placeholder="예: 5반 12번 홍길동" maxlength="15" autocomplete="off">
+            <!-- 기존 드롭다운 호환용 숨김 -->
+            <select id="player-num-select" class="player-num-select" style="display:none;"></select>
+            <input type="text" id="player-name-input" class="player-name-field" placeholder="내 이름이나 닉네임을 입력하세요 (예: 51번 학생)" maxlength="15" autocomplete="off">
           </div>
         </div>
 
@@ -237,7 +238,7 @@
 
   </div>
 
-  <script src="audio.js?v=2"></script>
-  <script src="game.js?v=2"></script>
+  <script src="audio.js?v=20260920_v3"></script>
+  <script src="game.js?v=20260920_v3"></script>
 </body>
 </html>

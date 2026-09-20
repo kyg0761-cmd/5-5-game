@@ -49,6 +49,17 @@ function normalizeStudentKey(num, name, identifier) {
   return "student_name_" + cleanName;
 }
 
+// 🏷️ 명예의 전당 등록 시 출석 번호 강제 접두사 포맷터 (예: 51번 멋쟁이토끼)
+function formatRankingDisplayName(num, rawName) {
+  rawName = (rawName || "").trim();
+  num = (num || "").toString().trim();
+  if (!num) return rawName || "학생";
+
+  const numPrefixRegex = new RegExp(`^${num}\\s*번?\\s*`, 'i');
+  const cleanName = rawName.replace(numPrefixRegex, '').trim() || '학생';
+  return `${num}번 ${cleanName}`;
+}
+
 // 한글 종성 매핑
 const JONGSEONG_TABLE = [
   '', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ'
@@ -70,9 +81,11 @@ function decomposeKorean(char) {
 
 class MusicGame {
   constructor() {
+    window.gameInstance = this;
     this.studentNum = '';
     this.playerName = '';
     this.currentStageId = 1;
+    this.userHasManuallySelectedStage = false;
     this.currentStageNotes = [];
     this.score = 0;
     this.combo = 0;
@@ -88,7 +101,6 @@ class MusicGame {
     this.currentModalStageTab = 1;
 
     this.initDOM();
-    this.populateAttendanceDropdown();
     this.checkUrlParameters();
     this.renderStageSelectGrid();
     this.bindEvents();
@@ -107,6 +119,7 @@ class MusicGame {
     // UI 요소
     this.playerNumSelect = document.getElementById('player-num-select');
     this.playerNameInput = document.getElementById('player-name-input');
+    this.studentNumText = document.getElementById('student-num-text');
     this.autoLoginBadge = document.getElementById('auto-login-badge');
     this.stageGrid = document.getElementById('stage-grid');
     this.btnStart = document.getElementById('btn-start');
@@ -146,29 +159,12 @@ class MusicGame {
     this.rankingListBody = document.getElementById('ranking-list-body');
   }
 
-  // 1번~14번(남), 51~61번(여) 출석 번호 드롭다운 옵션 동적 생성
-  populateAttendanceDropdown() {
-    let options = '<option value="">번호 선택</option>';
-    options += '<optgroup label="남학생 (1~14번)">';
-    for (let i = 1; i <= 14; i++) {
-      options += `<option value="${i}">${i}번</option>`;
-    }
-    options += '</optgroup>';
-    options += '<optgroup label="여학생 (51~61번)">';
-    for (let i = 51; i <= 61; i++) {
-      options += `<option value="${i}">${i}번</option>`;
-    }
-    options += '</optgroup>';
-    this.playerNumSelect.innerHTML = options;
-  }
-
-  // 학생 고유 식별 키 생성 (출석 번호 우선)
+  // 학생 고유 식별 키 생성 (출석 번호 최우선 고정)
   getStudentIdentifier() {
-    const num = this.playerNumSelect.value;
-    const name = this.playerNameInput.value.trim();
-    if (num) {
-      return `num_${num}`;
+    if (this.studentNum) {
+      return `num_${this.studentNum}`;
     }
+    const name = this.playerNameInput ? this.playerNameInput.value.trim() : this.playerName;
     return name ? `name_${name}` : 'guest_student';
   }
 
@@ -192,8 +188,8 @@ class MusicGame {
       // 2. 학생의 개인 클라우드 해금 진행상황 불러오기
       const ident = this.getStudentIdentifier();
       if (ident && ident !== 'guest_student') {
-        const numVal = this.playerNumSelect.value || '';
-        const nameVal = this.playerNameInput.value.trim() || '';
+        const numVal = this.studentNum || '';
+        const nameVal = (this.playerNameInput ? this.playerNameInput.value.trim() : '') || this.playerName || '';
         fetch(`${GAS_API_URL}?action=getStudentGameProgress&identifier=${encodeURIComponent(ident)}&num=${encodeURIComponent(numVal)}&name=${encodeURIComponent(nameVal)}`)
           .then(res => res.json())
           .then(data => {
@@ -220,6 +216,11 @@ class MusicGame {
                 const allData = JSON.parse(localStorage.getItem(PROGRESS_STORAGE_KEY) || '{}');
                 allData[ident] = localProg;
                 localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(allData));
+                
+                // 사용자가 수동으로 이전 단계를 클릭해두지 않은 경우에만 최고 해금 단계로 맞춤
+                if (!this.userHasManuallySelectedStage) {
+                  this.currentStageId = localProg.unlockedStage || 1;
+                }
                 this.renderStageSelectGrid();
               }
             }
@@ -231,37 +232,42 @@ class MusicGame {
     }
   }
 
-  // 칭찬 포인트 웹페이지 자동 연동 (URL Query 파라미터 감지)
+  // 칭찬 포인트 웹페이지 자동 연동 (URL Query 파라미터 / LocalStorage 감지)
   checkUrlParameters() {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const numParam = urlParams.get('num') || urlParams.get('number') || urlParams.get('id');
-      const studentParam = urlParams.get('student') || urlParams.get('name') || urlParams.get('user');
+      let numParam = urlParams.get('num') || urlParams.get('number') || urlParams.get('id');
+      let studentParam = urlParams.get('student') || urlParams.get('name') || urlParams.get('user');
       const stageParam = urlParams.get('stage');
+
+      // 1. URL 파라미터가 없으면 칭찬포인트 웹페이지 로컬 스토리지에서 승계
+      if (!numParam) {
+        numParam = localStorage.getItem("55_selected_student_num");
+      }
+      if (!studentParam) {
+        studentParam = localStorage.getItem("55_selected_student_name");
+      }
 
       if (numParam) {
         const numVal = parseInt(numParam);
-        if ((numVal >= 1 && numVal <= 14) || (numVal >= 51 && numVal <= 61) || (numVal >= 1 && numVal <= 70)) {
+        if ((numVal >= 1 && numVal <= 14) || (numVal >= 51 && numVal <= 61) || (numVal >= 1 && numVal <= 100)) {
           this.studentNum = numVal.toString();
-          this.playerNumSelect.value = this.studentNum;
         }
       }
 
       if (studentParam) {
         this.playerName = studentParam.trim();
-        this.playerNameInput.value = this.playerName;
       } else if (this.studentNum) {
         this.playerName = `${this.studentNum}번 학생`;
-        this.playerNameInput.value = this.playerName;
       }
 
-      if (this.studentNum || studentParam) {
-        this.autoLoginBadge.classList.remove('hidden');
-        if (this.studentNum) {
-          this.autoLoginBadge.textContent = `✨ ${this.studentNum}번 학생 연동됨`;
-        } else {
-          this.autoLoginBadge.textContent = `✨ 자동 연동됨`;
-        }
+      // 출석 번호 고정 뱃지 갱신
+      if (this.studentNumText) {
+        this.studentNumText.textContent = this.studentNum ? `${this.studentNum}번` : '미지정';
+      }
+
+      if (this.playerNameInput) {
+        this.playerNameInput.value = this.playerName;
       }
 
       // 학생의 최고 해금 단계로 기본 선택 설정
@@ -272,6 +278,7 @@ class MusicGame {
         const reqStage = parseInt(stageParam);
         if (reqStage <= progress.unlockedStage) {
           this.currentStageId = reqStage;
+          this.userHasManuallySelectedStage = true;
         }
       }
     } catch (e) {
@@ -328,12 +335,30 @@ class MusicGame {
     }
   }
 
-  // 단계 선택 카드 그리드 렌더링
+  // 🎯 단계 선택 메서드 (전역/인라인에서 즉시 실행)
+  selectStage(sid) {
+    sid = parseInt(sid, 10);
+    const progress = this.getStudentProgress();
+    const currentUnlocked = progress.unlockedStage || 1;
+
+    if (sid > currentUnlocked) {
+      if (window.sounds && window.sounds.playWrong) sounds.playWrong();
+      alert(`${sid - 1}단계에서 ${STAGES_CONFIG[sid - 2].targetScore}점 이상을 획득해야 해금됩니다!`);
+      return;
+    }
+
+    if (window.sounds && window.sounds.playPop) sounds.playPop();
+    this.userHasManuallySelectedStage = true;
+    this.currentStageId = sid;
+    this.renderStageSelectGrid();
+  }
+
+  // 단계 선택 카드 그리드 렌더링 (단일 선택 완전 보장)
   renderStageSelectGrid() {
     const progress = this.getStudentProgress();
     const unlocked = progress.unlockedStage || 1;
 
-    // 만약 현재 선택된 단계가 잠겨있다면 해금된 최고 단계로 자동 보정
+    // 만약 현재 선택된 단계가 아직 해금되지 않은 잠긴 단계라면 해금된 최고 단계로 보정
     if (this.currentStageId > unlocked) {
       this.currentStageId = unlocked;
     }
@@ -341,30 +366,34 @@ class MusicGame {
     let html = '';
     STAGES_CONFIG.forEach(stg => {
       const isLocked = stg.id > unlocked;
-      const isSelected = stg.id === this.currentStageId;
+      const isSelected = (stg.id === this.currentStageId);
       const best = (progress.highScores && progress.highScores[stg.id]) || 0;
       const isCleared = best >= stg.targetScore;
 
       let cardClass = 'stage-card';
-      if (isLocked) cardClass += ' locked';
-      if (isSelected && !isLocked) cardClass += ' selected';
-      if (isCleared) cardClass += ' cleared';
+      if (isLocked) {
+        cardClass += ' locked';
+      } else if (isSelected) {
+        cardClass += ' selected';
+      } else if (isCleared) {
+        cardClass += ' cleared';
+      }
 
       let statusBadge = '';
       if (isLocked) {
-        statusBadge = '<span class="stage-status-badge">🔒 잠김</span>';
+        statusBadge = '<span class="stage-status-badge badge-locked">🔒 잠김</span>';
       } else if (isSelected) {
-        statusBadge = '<span class="stage-status-badge" style="background:#0284c7; color:white; font-weight:700;">👉 선택됨</span>';
+        statusBadge = '<span class="stage-status-badge badge-selected">👉 선택됨</span>';
       } else if (isCleared) {
-        statusBadge = `<span class="stage-status-badge">🌟 완료 (${best.toLocaleString()}점)</span>`;
+        statusBadge = `<span class="stage-status-badge badge-cleared">🌟 완료 (${best.toLocaleString()}점)</span>`;
       } else if (best > 0) {
-        statusBadge = `<span class="stage-status-badge">${best.toLocaleString()}점</span>`;
+        statusBadge = `<span class="stage-status-badge badge-available">${best.toLocaleString()}점</span>`;
       } else {
-        statusBadge = '<span class="stage-status-badge" style="color:#38bdf8;">도전 가능</span>';
+        statusBadge = '<span class="stage-status-badge badge-available">도전 가능</span>';
       }
 
       html += `
-        <div class="${cardClass}" data-stage="${stg.id}">
+        <div class="${cardClass}" data-stage="${stg.id}" onclick="window.gameInstance && window.gameInstance.selectStage(${stg.id})">
           <div class="stage-num-badge">${stg.name}</div>
           <div class="stage-range-text">${stg.rangeText}</div>
           <div class="stage-target-text">목표: ${stg.targetScore.toLocaleString()}점</div>
@@ -380,37 +409,17 @@ class MusicGame {
     if (this.btnStart && curStg) {
       this.btnStart.innerHTML = `🎯 [ ${curStg.name} (${curStg.rangeText}) ] 게임 시작하기 ➔`;
     }
-
-    // 단계 카드 클릭 이벤트 (해금된 모든 단계 자유롭게 선택 가능)
-    this.stageGrid.querySelectorAll('.stage-card').forEach(card => {
-      card.addEventListener('click', () => {
-        const sid = parseInt(card.getAttribute('data-stage'));
-        if (sid <= (this.getStudentProgress().unlockedStage || 1)) {
-          this.currentStageId = sid;
-          this.renderStageSelectGrid();
-        } else {
-          alert(`${sid - 1}단계에서 ${STAGES_CONFIG[sid - 2].targetScore}점 이상을 획득해야 해금됩니다!`);
-        }
-      });
-    });
   }
 
   bindEvents() {
-    // 번호 드롭다운 선택 시 자동 이름 및 기록 연동 + 클라우드 실시간 동기화
-    this.playerNumSelect.addEventListener('change', () => {
-      const num = this.playerNumSelect.value;
-      if (num) {
-        if (!this.playerNameInput.value || this.playerNameInput.value.includes('번 학생')) {
-          this.playerNameInput.value = `${num}번 학생`;
-        }
-      }
-      this.renderStageSelectGrid();
-      this.syncCloudData();
-    });
-
-    this.playerNameInput.addEventListener('input', () => {
-      this.renderStageSelectGrid();
-    });
+    if (this.playerNameInput) {
+      this.playerNameInput.addEventListener('input', () => {
+        this.playerName = this.playerNameInput.value.trim();
+      });
+      this.playerNameInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') this.startGame();
+      });
+    }
 
     this.btnStart.addEventListener('click', () => this.startGame());
     this.playerNameInput.addEventListener('keydown', (e) => {
@@ -766,9 +775,11 @@ class MusicGame {
     }
 
     // 단계별 랭킹 저장 (5,000점 이상 달성자 명예의 전당)
+    const displayName = formatRankingDisplayName(this.studentNum, this.playerName);
     const isNewRecord = this.saveRanking(this.currentStageId, {
       identifier: this.getStudentIdentifier(),
-      name: this.playerName,
+      name: displayName,
+      num: this.studentNum || '',
       score: this.score,
       correct: this.correctCount,
       combo: this.maxCombo,
@@ -785,8 +796,8 @@ class MusicGame {
     // 칭찬 포인트 웹페이지로 결과 데이터 전송 (PostMessage 및 LocalStorage 동시 백업)
     const resultPayload = {
       type: 'MUSIC_NOTES_GAME_RESULT',
-      studentNum: this.playerNumSelect.value || '',
-      studentName: this.playerName,
+      studentNum: this.studentNum || '',
+      studentName: displayName,
       stage: this.currentStageId,
       stageName: stageCfg.name,
       score: this.score,
@@ -842,7 +853,7 @@ class MusicGame {
     }
 
     const list = this.getRankings(stageId);
-    const numVal = this.playerNumSelect.value || '';
+    const numVal = this.studentNum || record.num || '';
     const studentIdentifier = record.identifier || (numVal ? `num_${numVal}` : `name_${record.name}`);
     const studentKey = normalizeStudentKey(numVal, record.name, studentIdentifier);
 
