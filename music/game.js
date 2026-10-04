@@ -871,7 +871,7 @@ class MusicGame {
     list.sort((a, b) => b.score - a.score || b.correct - a.correct || b.combo - a.combo);
     localStorage.setItem(`${STORAGE_PREFIX}${stageId}`, JSON.stringify(list));
 
-    // ☁️ 구글 스프레드시트 클라우드 비동기 저장
+    // ☁️ 구글 스프레드시트 클라우드 비동기 저장 (안전한 keepalive 및 재시도 보장)
     try {
       const payload = {
         action: 'saveMusicScore',
@@ -884,12 +884,22 @@ class MusicGame {
         combo: record.combo,
         date: record.date || new Date().toLocaleDateString('ko-KR')
       };
-      fetch(GAS_API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        mode: 'no-cors'
-      }).catch(e => console.log('Cloud save error', e));
+
+      const sendScore = (retry = true) => {
+        fetch(GAS_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload),
+          mode: 'no-cors',
+          keepalive: true
+        }).catch(e => {
+          console.log('Cloud save error', e);
+          if (retry) {
+            setTimeout(() => sendScore(false), 1500);
+          }
+        });
+      };
+      sendScore(true);
     } catch (e) {
       console.log('Cloud save call error', e);
     }
