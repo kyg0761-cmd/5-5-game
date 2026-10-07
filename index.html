@@ -37,9 +37,7 @@
               .then(function(data) {
                 if (data && data.serverUrl && data.serverUrl.trim().length > 0) {
                   params.set('ws', data.serverUrl.trim());
-                  var newSearch = '?' + params.toString();
-                  window.history.replaceState(null, '', window.location.pathname + newSearch);
-                  console.log('[AutoConnect] 교사 서버 주소 자동 연결 설정:', data.serverUrl.trim());
+                  window.location.replace(window.location.pathname + '?' + params.toString());
                 }
               })
               .catch(function(e) {});
