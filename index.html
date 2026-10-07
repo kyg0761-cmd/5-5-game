@@ -26,6 +26,27 @@
     <script>
       var canvas = document.querySelector("#unity-canvas");
 
+      // 🌟 [교사 서버 주소 자동 탐색] 학생이 IP를 직접 칠 필요 없이 구글 시트에서 즉시 가져옵니다.
+      (function() {
+        try {
+          var params = new URLSearchParams(window.location.search);
+          if (!params.get('ws') && !params.get('server')) {
+            var gasUrl = 'https://script.google.com/macros/s/AKfycbzmwnxxN6B1PjwcE3Q8wZkLCpk03-8oN9LOMt9H26Gr7pJI-AQ7wi1QndbDWYCZ_-aMUQ/exec?action=getServerUrl';
+            fetch(gasUrl)
+              .then(function(r) { return r.json(); })
+              .then(function(data) {
+                if (data && data.serverUrl && data.serverUrl.trim().length > 0) {
+                  params.set('ws', data.serverUrl.trim());
+                  var newSearch = '?' + params.toString();
+                  window.history.replaceState(null, '', window.location.pathname + newSearch);
+                  console.log('[AutoConnect] 교사 서버 주소 자동 연결 설정:', data.serverUrl.trim());
+                }
+              })
+              .catch(function(e) {});
+          }
+        } catch(e) {}
+      })();
+
       // Shows a temporary message banner/ribbon for a few seconds, or
       // a permanent error message on top of the canvas if type=='error'.
       // If type=='warning', a yellow highlight color is used.
