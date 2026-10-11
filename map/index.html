@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🗺️ '도' 단위 행정 구역 외우기 챌린지 - 남한 백지도 타임어택</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;600;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=20261010_v1">
+</head>
+<body>
+  <div class="game-container">
+    <!-- 상단 헤더 -->
+    <header class="game-header">
+      <div class="badge-title">🗺️ 사회과 행정 구역 외우기 미션</div>
+      <h1 class="main-title">우리나라 '도' 단위 행정 구역 챌린지</h1>
+      <p class="subtitle">남한 백지도의 빈칸을 빠르게 입력해 단계별 목표 시간 안에 정복하세요!</p>
+    </header>
+
+    <!-- 1. 대기 화면 (Start Screen) -->
+    <div id="screen-start" class="screen active">
+      <div class="hero-card glass-card">
+        
+        <!-- 학생 정보 및 연동 표시 -->
+        <div class="player-input-wrap">
+          <div class="player-header-row">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="student-num-badge" class="student-num-badge">🏷️ 출석 번호: <b id="student-num-text">51번</b></span>
+              <span id="auto-login-badge" class="auto-login-badge">🔒 연동 완료</span>
+            </div>
+            <label for="player-name-input" style="font-size:0.85rem; color:#94a3b8;">* 닉네임 자유 수정 가능</label>
+          </div>
+          <div class="student-input-row">
+            <input type="text" id="player-name-input" class="player-name-field" placeholder="내 이름이나 닉네임을 입력하세요 (예: 51번 학생)" maxlength="15" autocomplete="off">
+          </div>
+        </div>
+
+        <!-- 5단계 스테이지 선택 그리드 -->
+        <div class="stage-select-section">
+          <div class="stage-section-title">
+            <span>🎯 도전할 단계를 선택하세요</span>
+            <span class="stage-clear-tip">💡 목표 시간 내 성공 시 다음 단계 해금! (초과 시에도 끝까지 연습 가능)</span>
+          </div>
+
+          <div class="stage-grid" id="stage-grid">
+            <!-- JS로 동적 생성 -->
+          </div>
+        </div>
+
+        <div class="btn-group">
+          <button id="btn-start" class="btn btn-primary pulse">🚀 선택한 단계 시작하기 (Enter)</button>
+          <button id="btn-show-rankings" class="btn btn-secondary">🏆 명예의 전당</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 플레이 화면 (Play Screen) -->
+    <div id="screen-play" class="screen">
+      <!-- 상단 스탯 바 -->
+      <div class="stats-bar">
+        <div class="stat-item stage-info-item">
+          <div class="stat-label">도전 단계</div>
+          <div class="stat-value stage-badge-text" id="play-stage-title">1단계</div>
+          <div class="stage-sub-text" id="play-stage-desc">6개 권역 / 1개 빈칸</div>
+        </div>
+
+        <div class="stat-item question-progress-item">
+          <div class="stat-label">진행 문제</div>
+          <div class="stat-value" id="play-question-num" style="color:var(--accent-blue);">1 <small style="font-size:0.9rem; color:#94a3b8;">/ 10</small></div>
+          <div class="stage-sub-text" id="play-question-type">빈칸을 맞춰보세요</div>
+        </div>
+
+        <div class="stat-item timer-item">
+          <div class="stat-label" id="timer-stat-label">남은 시간</div>
+          <div class="stat-value" id="timer-display">45<small style="font-size:0.9rem;">s</small></div>
+          <div class="timer-gauge-bg">
+            <div id="timer-gauge-fill" class="timer-gauge-fill"></div>
+          </div>
+        </div>
+
+        <div class="stat-item user-item">
+          <div class="stat-label">도전자</div>
+          <div class="stat-value" id="play-user-display" style="font-size:1.15rem; color:#f8fafc; text-overflow:ellipsis; overflow:hidden; white-space:nowrap;">-</div>
+          <div class="stage-sub-text">연속 성공 중</div>
+        </div>
+      </div>
+
+      <!-- 지도 메인 카드 -->
+      <div class="map-card glass-card" id="map-game-card">
+        
+        <!-- 상단 키보드 단축키 및 안내 바 -->
+        <div class="game-instructions-bar">
+          <div class="instruction-text">
+            <span>💡 <b>'도'</b>까지 정확히 적어주세요! (예: 경기도, 충청북도)</span>
+          </div>
+          <div class="keyboard-shortcut-tips">
+            <span><span class="kbd">Tab</span> 다음 빈칸</span>
+            <span><span class="kbd">Enter</span> 정답 제출</span>
+          </div>
+        </div>
+
+        <!-- 피드백 배너 (틀렸을 때 / 맞았을 때) -->
+        <div id="feedback-banner" class="feedback-banner"></div>
+
+        <!-- 지도 및 빈칸 레이어 컨테이너 -->
+        <div class="map-canvas-container" id="map-canvas-container">
+          
+          <!-- 1단계 전용 정답 미리보기 오버레이 (시간 정지 상태) -->
+          <div id="preview-overlay" class="preview-overlay hidden">
+            <div class="preview-box">
+              <span class="preview-badge">⏱️ 시간 정지 | 정답 지도 확인</span>
+              <h2 class="preview-title">각 '도'의 위치를 확인하세요!</h2>
+              <p class="preview-desc">
+                지금은 <b>타이머가 흐르지 않습니다.</b><br>
+                지도의 위치를 확인한 후 <b>[Enter]</b> 또는 아래 버튼을 눌러 문제를 시작하세요!
+              </p>
+              <button id="btn-start-question" class="btn-start-question">🚀 문제 풀기 시작! (Enter)</button>
+            </div>
+          </div>
+
+          <!-- 한국 남한 백지도 SVG -->
+          <svg id="korea-svg" class="korea-svg" viewBox="120 10 820 980" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <filter id="glow-filter" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+            <g id="svg-provinces-group">
+              <!-- JS에서 SVG Path 동적 주입 -->
+            </g>
+            <!-- 울릉도 / 독도 안내 텍스트 -->
+            <text x="830" y="310" class="map-island-label">울릉도</text>
+            <text x="895" y="315" class="map-island-label">독도</text>
+            <text x="660" y="200" class="map-island-label" style="font-size:16px; fill:rgba(255,255,255,0.25);">동 해</text>
+            <text x="180" y="550" class="map-island-label" style="font-size:16px; fill:rgba(255,255,255,0.25);">황 해</text>
+            <text x="500" y="850" class="map-island-label" style="font-size:16px; fill:rgba(255,255,255,0.25);">남 해</text>
+            <!-- 엑스트라 전용 안내 텍스트 -->
+            <g id="extra-map-labels" style="display:none;">
+              <text x="512" y="-664" class="map-island-label" style="font-size:15px; fill:rgba(255,255,255,0.45); font-weight:bold;">백두산 🏔️</text>
+              <text x="142" y="-474" class="map-island-label" style="font-size:13px; fill:rgba(255,255,255,0.25);">압 록 강</text>
+              <text x="662" y="-704" class="map-island-label" style="font-size:13px; fill:rgba(255,255,255,0.25);">두 만 강</text>
+            </g>
+          </svg>
+
+          <!-- 지도 위에 올라가는 텍스트 라벨 & 빈칸 입력창 오버레이 레이어 -->
+          <div id="map-overlays-layer" class="map-overlays-layer">
+            <!-- JS로 동적 생성 -->
+          </div>
+        </div>
+
+        <!-- 하단 액션 버튼 그룹 -->
+        <div class="game-bottom-bar">
+          <button id="btn-submit-answer" class="btn-submit">✅ 정답 제출하기 (Enter)</button>
+          <button id="btn-giveup" class="btn-giveup">돌아가기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 결과 화면 (Result Screen) -->
+    <div id="screen-result" class="screen">
+      <div class="result-card glass-card">
+        <div id="result-icon" class="result-icon">🎉</div>
+        <h2 id="result-title" class="result-title cleared">1단계 클리어 성공!</h2>
+        <p id="result-desc" style="color: #cbd5e1; font-size:1.05rem;">축하합니다! 10문제를 완벽하게 풀어냈습니다.</p>
+
+        <div class="result-stats-box">
+          <div>
+            <div class="stat-label">걸린 시간</div>
+            <div class="result-stat-val" id="result-time-val" style="color:var(--accent-amber);">42.5초</div>
+          </div>
+          <div>
+            <div class="stat-label">남은 시간</div>
+            <div class="result-stat-val" id="result-left-val" style="color:var(--accent-emerald);">77.5초</div>
+          </div>
+          <div>
+            <div class="stat-label">해금 상태</div>
+            <div class="result-stat-val" id="result-unlock-val" style="color:var(--accent-blue);">다음 단계 해금</div>
+          </div>
+        </div>
+
+        <div id="result-next-tip" class="result-next-tip">
+          💡 다음 단계에 도전해 더 높은 난이도를 정복해보세요!
+        </div>
+
+        <div class="btn-group">
+          <button id="btn-next-stage" class="btn btn-primary pulse">🎯 다음 단계 도전하기</button>
+          <button id="btn-retry" class="btn btn-secondary">🔄 다시 도전하기</button>
+          <button id="btn-result-rankings" class="btn btn-secondary">🏆 명예의 전당</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 명예의 전당 모달 -->
+    <div id="modal-rankings" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">🏆 행정 구역 외우기 명예의 전당</h3>
+          <button id="btn-close-modal" class="modal-close-btn">&times;</button>
+        </div>
+
+        <div class="modal-stage-tabs" id="modal-stage-tabs">
+          <button class="tab-stage-btn active" data-stage="1">1단계</button>
+          <button class="tab-stage-btn" data-stage="2">2단계</button>
+          <button class="tab-stage-btn" data-stage="3">3단계</button>
+          <button class="tab-stage-btn" data-stage="4">4단계</button>
+          <button class="tab-stage-btn" data-stage="5">5단계</button>
+          <button class="tab-stage-btn tab-stage-extra" data-stage="6">👑 엑스트라</button>
+        </div>
+
+        <div class="rankings-table-wrap">
+          <table class="rankings-table">
+            <thead>
+              <tr>
+                <th style="width:14%;">순위</th>
+                <th style="width:38%;">학생 이름</th>
+                <th style="width:24%;">클리어 시간</th>
+                <th style="width:24%;">달성 일자</th>
+              </tr>
+            </thead>
+            <tbody id="rankings-tbody">
+              <!-- JS로 동적 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="modal-footer">
+          <button id="btn-close-modal-bottom" class="btn btn-secondary" style="padding:8px 18px; font-size:0.9rem;">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="audio.js?v=20261010_v2"></script>
+  <script src="north_korea_paths.js?v=20261010_v2"></script>
+  <script src="game.js?v=20261010_v2"></script>
+</body>
+</html>
