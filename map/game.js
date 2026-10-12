@@ -4,7 +4,7 @@
 const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzmwnxxN6B1PjwcE3Q8wZkLCpk03-8oN9LOMt9H26Gr7pJI-AQ7wi1QndbDWYCZ_-aMUQ/exec';
 const STORAGE_PREFIX = 'MAP_PROVINCES_RANKING_STAGE_';
 const PROGRESS_STORAGE_KEY = 'MAP_PROVINCES_STUDENT_PROGRESS';
-// 단계별 목표 시간: 1단계 45초, 2단계 90초, 3단계 60초, 4단계 90초, 5단계 35초
+// 단계별 목표 시간: 1단계 75초, 2단계 90초, 3단계 120초, 4단계 160초, 5단계 40초, 6단계 130초
 
 // 6개 권역 (1, 2단계용) - 정의된 순서 준수 (포커스 이동 기준)
 const REGIONS_6 = [
@@ -58,7 +58,7 @@ const STAGES_CONFIG = [
     blanksCount: 1,
     hasPreview: true,
     totalQuestions: 10,
-    targetDuration: 45,
+    targetDuration: 75,
     hideNonBlankLabels: false
   },
   {
@@ -82,7 +82,7 @@ const STAGES_CONFIG = [
     blanksCount: 2,
     hasPreview: false,
     totalQuestions: 10,
-    targetDuration: 60,
+    targetDuration: 120,
     hideNonBlankLabels: false
   },
   {
@@ -94,7 +94,7 @@ const STAGES_CONFIG = [
     blanksCount: 3,
     hasPreview: false,
     totalQuestions: 10,
-    targetDuration: 90,
+    targetDuration: 160,
     hideNonBlankLabels: true
   },
   {
@@ -106,7 +106,7 @@ const STAGES_CONFIG = [
     blanksCount: 9,
     hasPreview: false,
     totalQuestions: 1,
-    targetDuration: 35,
+    targetDuration: 40,
     hideNonBlankLabels: false
   },
   {
@@ -118,7 +118,7 @@ const STAGES_CONFIG = [
     blanksCount: 1,
     hasPreview: false,
     totalQuestions: 5,
-    targetDuration: 100,
+    targetDuration: 130,
     hideNonBlankLabels: false,
     isExtraStage: true
   }
@@ -195,9 +195,9 @@ class KoreaMapGame {
     this.currentQuestionIdx = 0; // 0 ~ (총 문제수 - 1)
     this.questions = [];
     this.currentQuestion = null;
-    this.targetDuration = 45; // 현재 단계 목표 시간 (초)
+    this.targetDuration = 75; // 현재 단계 목표 시간 (초)
     this.elapsedSeconds = 0; // 경과 시간 (초)
-    this.timeLeft = 45; // 남은 시간 (초)
+    this.timeLeft = 75; // 남은 시간 (초)
     this.isTimeOver = false; // 목표 시간 초과 여부 (초과되어도 계속 풀 수 있음!)
     this.timerInterval = null;
     this.startTime = null;
