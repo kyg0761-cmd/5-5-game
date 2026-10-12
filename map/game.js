@@ -191,7 +191,9 @@ class KoreaMapGame {
     this.isPlaying = false;
     this.isTimerPaused = false;
     this.isRevealingAnswer = false;
+    this.isSubmitting = false; // 🔑 엔터 연타 및 다중 정답 스킵 버그 방지 락
     this.revealTimeout = null;
+    this.nextQuestionTimeout = null; // 🔑 정답 후 다음 문제 지연 타이머 핸들
     this.currentQuestionIdx = 0; // 0 ~ (총 문제수 - 1)
     this.questions = [];
     this.currentQuestion = null;
@@ -484,6 +486,12 @@ class KoreaMapGame {
   // 키보드 입력 핸들러
   handleGlobalKeydown(e) {
     if (e.key === 'Enter') {
+      // 🔑 키보드 물리적/OS 자동 반복(길게 누르기) 차단
+      if (e.repeat) {
+        e.preventDefault();
+        return;
+      }
+
       // 1. 대기 화면에서 Enter 시 게임 시작
       if (this.screenStart.classList.contains('active')) {
         e.preventDefault();
@@ -498,9 +506,10 @@ class KoreaMapGame {
         return;
       }
 
-      // 3. 문제 풀이 중 Enter 시 정답 제출
+      // 3. 문제 풀이 중 Enter 시 정답 제출 (이미 제출 처리 중인 경우 연타 차단)
       if (this.isPlaying && this.previewOverlay.classList.contains('hidden')) {
         e.preventDefault();
+        if (this.isSubmitting) return; // 🔑 연타 차단
         this.submitAnswer();
         return;
       }
@@ -548,9 +557,14 @@ class KoreaMapGame {
     this.isPlaying = true;
     this.isTimerPaused = false;
     this.isRevealingAnswer = false;
+    this.isSubmitting = false;
     if (this.revealTimeout) {
       clearTimeout(this.revealTimeout);
       this.revealTimeout = null;
+    }
+    if (this.nextQuestionTimeout) {
+      clearTimeout(this.nextQuestionTimeout);
+      this.nextQuestionTimeout = null;
     }
     this.clearTime = null;
 
@@ -734,10 +748,16 @@ class KoreaMapGame {
   // 문제 로드
   loadQuestion(idx) {
     this.isRevealingAnswer = false;
+    this.isSubmitting = false; // 🔑 새 문제가 정상 로드된 후에만 제출 가능
     if (this.revealTimeout) {
       clearTimeout(this.revealTimeout);
       this.revealTimeout = null;
     }
+    if (this.nextQuestionTimeout) {
+      clearTimeout(this.nextQuestionTimeout);
+      this.nextQuestionTimeout = null;
+    }
+    this.btnSubmitAnswer.disabled = false;
     this.btnSubmitAnswer.innerText = '✅ 정답 제출하기 (Enter)';
 
     this.currentQuestionIdx = idx;
@@ -883,6 +903,9 @@ class KoreaMapGame {
       return;
     }
 
+    // 🔑 이미 정답 처리 중이거나 연타 중인 경우 완벽 차단!
+    if (this.isSubmitting) return;
+
     const inputs = Array.from(this.mapOverlaysLayer.querySelectorAll('.blank-input'));
     if (inputs.length === 0) return;
 
@@ -909,6 +932,7 @@ class KoreaMapGame {
 
     if (hasWrong) {
       // ❌ 오답 처리: 정답 공개 + 화면 진동 + 풀어야 하는 문제 1개 증가
+      this.isSubmitting = true; // 다음 문제로 넘어가기 전까지 추가 제출 차단
       this.isRevealingAnswer = true;
       mapAudio.playWrong();
       this.triggerShakeScreen();
@@ -940,10 +964,19 @@ class KoreaMapGame {
       }, 2200);
     } else {
       // ⭕ 정답 처리: 경쾌한 사운드 + 즉시 다음 문제
+      this.isSubmitting = true; // 🔑 엔터 연타 및 중복 제출 차단 락 활성화!
+      this.btnSubmitAnswer.disabled = true; // 🔑 버튼 비활성화
+      inputs.forEach(inp => inp.disabled = true); // 🔑 인풋 필드 즉시 비활성화 (포커스/키이벤트 차단)
+
       mapAudio.playCorrect();
       this.showFeedback('⭕ 정답입니다!', 'correct');
 
-      setTimeout(() => {
+      if (this.nextQuestionTimeout) {
+        clearTimeout(this.nextQuestionTimeout);
+      }
+
+      this.nextQuestionTimeout = setTimeout(() => {
+        this.nextQuestionTimeout = null;
         if (this.currentQuestionIdx + 1 >= this.questions.length) {
           // 모든 목표 문제 올 클리어!
           this.stageClear();
@@ -958,6 +991,7 @@ class KoreaMapGame {
   nextQuestionAfterReveal() {
     if (!this.isRevealingAnswer) return;
     this.isRevealingAnswer = false;
+    this.isSubmitting = false;
     if (this.revealTimeout) {
       clearTimeout(this.revealTimeout);
       this.revealTimeout = null;
@@ -999,6 +1033,11 @@ class KoreaMapGame {
   stageClear() {
     this.stopTimer();
     this.isPlaying = false;
+    this.isSubmitting = false;
+    if (this.nextQuestionTimeout) {
+      clearTimeout(this.nextQuestionTimeout);
+      this.nextQuestionTimeout = null;
+    }
     const config = STAGES_CONFIG.find(c => c.id === this.currentStageId) || STAGES_CONFIG[0];
     const target = config.targetDuration;
     const isOvertime = this.elapsedSeconds > target;
